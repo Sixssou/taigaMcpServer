@@ -1246,51 +1246,123 @@ export class TaigaService {
 
   /**
    * Link User Story to Epic
+   * Creates a relationship between an existing user story and an existing epic
    * @param {number} userStoryId - User Story ID
    * @param {number} epicId - Epic ID
-   * @returns {Promise<Object>} - Updated User Story
+   * @returns {Promise<Object>} - Created related user story object
    */
   async linkStoryToEpic(userStoryId, epicId) {
     try {
       const client = await createAuthenticatedClient();
-      
-      // Get current User Story to get version for update
-      const currentStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      const updateData = {
+
+      console.log(`📋 Linking user story #${userStoryId} to epic #${epicId}...`);
+
+      // Use the dedicated endpoint for creating epic-user story relationships
+      // POST /epics/{epicId}/related_userstories
+      const endpoint = API_ENDPOINTS.EPIC_RELATED_USERSTORIES(epicId);
+      const requestData = {
         epic: epicId,
-        version: currentStory.data.version
+        user_story: userStoryId
       };
-      
-      const response = await client.patch(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`, updateData);
-      return response.data;
+
+      console.log(`📤 Sending POST request to ${endpoint}`);
+      console.log(`📤 Request data:`, JSON.stringify(requestData, null, 2));
+
+      const response = await client.post(endpoint, requestData);
+
+      console.log(`📥 Response status:`, response.status);
+      console.log(`📥 Related user story created:`, response.data.id);
+      console.log(`📥 Epic ID:`, response.data.epic);
+      console.log(`📥 User Story ID:`, response.data.user_story);
+
+      // Verify that the relationship was created
+      if (response.data.epic !== epicId || response.data.user_story !== userStoryId) {
+        throw new Error(`Epic link verification failed: Expected epic=${epicId}, us=${userStoryId}, but got epic=${response.data.epic}, us=${response.data.user_story}`);
+      }
+
+      // Fetch the updated user story to return complete information
+      const updatedStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
+      console.log(`📋 Updated user story epic field:`, updatedStory.data.epic);
+
+      return updatedStory.data;
     } catch (error) {
-      console.error('Failed to link story to epic:', error.message);
-      console.error('Error details:', error.response?.data || error);
+      console.error('❌ Failed to link story to epic:', error.message);
+      console.error('❌ Error details:', error.response?.data || error);
+
+      // Provide more specific error messages
+      if (error.response?.status === 400) {
+        throw new Error(`Bad request: ${JSON.stringify(error.response.data)}`);
+      } else if (error.response?.status === 404) {
+        throw new Error(`Epic or User Story not found`);
+      } else if (error.response?.status === 403) {
+        throw new Error(`Permission denied - you may not have rights to link stories to this epic`);
+      }
+
       throw new Error(`Failed to link user story to epic: ${error.message}`);
     }
   }
 
   /**
    * Unlink User Story from Epic
+   * Removes the relationship between a user story and its epic
    * @param {number} userStoryId - User Story ID
    * @returns {Promise<Object>} - Updated User Story
    */
   async unlinkStoryFromEpic(userStoryId) {
     try {
       const client = await createAuthenticatedClient();
-      
-      // Get current User Story to get version for update
+
+      console.log(`📋 Unlinking user story #${userStoryId} from epic...`);
+
+      // First, get the current user story to find the related user story link ID
       const currentStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      const updateData = {
-        epic: null,
-        version: currentStory.data.version
-      };
-      
-      const response = await client.patch(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`, updateData);
-      return response.data;
+      console.log(`📋 Current story epic value:`, currentStory.data.epic);
+
+      if (!currentStory.data.epic) {
+        console.log(`⚠️  User story is not linked to any epic`);
+        return currentStory.data;
+      }
+
+      const epicId = currentStory.data.epic;
+
+      // Find the related user story link by listing all related stories for the epic
+      const relatedStoriesEndpoint = API_ENDPOINTS.EPIC_RELATED_USERSTORIES(epicId);
+      const relatedStories = await client.get(relatedStoriesEndpoint);
+
+      // Find the specific relationship for this user story
+      const relationship = relatedStories.data.find(rs => rs.user_story === userStoryId);
+
+      if (!relationship) {
+        throw new Error(`Related user story relationship not found for story #${userStoryId} in epic #${epicId}`);
+      }
+
+      console.log(`📋 Found relationship ID: ${relationship.id}`);
+
+      // Delete the relationship using DELETE /epics/{epicId}/related_userstories/{relationshipId}
+      const deleteEndpoint = `${relatedStoriesEndpoint}/${relationship.id}`;
+      console.log(`📤 Sending DELETE request to ${deleteEndpoint}`);
+
+      await client.delete(deleteEndpoint);
+
+      console.log(`✅ User story unlinked successfully`);
+
+      // Fetch and return the updated user story
+      const updatedStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
+      console.log(`📋 Updated user story epic field:`, updatedStory.data.epic);
+
+      return updatedStory.data;
     } catch (error) {
-      console.error('Failed to unlink story from epic:', error.message);
-      throw new Error('Failed to unlink user story from epic');
+      console.error('❌ Failed to unlink story from epic:', error.message);
+      console.error('❌ Error details:', error.response?.data || error);
+
+      // Provide more specific error messages
+      if (error.response?.status === 404) {
+        throw new Error(`Epic relationship not found`);
+      } else if (error.response?.status === 403) {
+        throw new Error(`Permission denied - you may not have rights to unlink this story`);
+      }
+
+      throw new Error(`Failed to unlink user story from epic: ${error.message}`);
     }
   }
 
