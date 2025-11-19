@@ -161,6 +161,7 @@ export const API_ENDPOINTS = {
   USERSTORY_ATTACHMENTS: '/userstories/attachments',
   TASK_ATTACHMENTS: '/tasks/attachments',
   EPICS: '/epics',
+  EPIC_RELATED_USERSTORIES: (epicId) => `/epics/${epicId}/related_userstories`, // Function to build epic-related user stories endpoint
   WIKI: '/wiki',
   WIKI_ATTACHMENTS: '/wiki/attachments',
   MEMBERSHIPS: '/memberships',
