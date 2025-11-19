@@ -68,7 +68,7 @@ export const createWikiPageTool = {
  */
 export const listWikiPagesTool = {
   name: 'listWikiPages',
-  description: 'List all Wiki pages in a project',
+  description: 'List all Wiki pages in a project. Returns the complete list with automatic pagination.',
   inputSchema: z.object({
     project: z.union([z.number(), z.string()]).describe('Project ID, slug, or name'),
   }),

@@ -20,6 +20,7 @@ const taigaService = new TaigaService();
  */
 export const listProjectsTool = {
   name: 'listProjects',
+  description: 'List all projects the user has access to. Returns the complete list with automatic pagination.',
   schema: {},
   handler: async () => {
     try {

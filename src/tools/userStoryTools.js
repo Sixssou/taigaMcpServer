@@ -23,6 +23,7 @@ const taigaService = new TaigaService();
  */
 export const listUserStoriesTool = {
   name: 'listUserStories',
+  description: 'List all user stories in a project. Returns the complete list with automatic pagination.',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
   },

@@ -24,6 +24,7 @@ const taigaService = new TaigaService();
  */
 export const listSprintsTool = {
   name: 'listMilestones',
+  description: 'List all sprints (milestones) in a project. Returns the complete list with automatic pagination.',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
   },
@@ -138,6 +139,7 @@ Status: ${getStatusLabel(createdMilestone.closed)}`;
  */
 export const getIssuesBySprintTool = {
   name: 'getIssuesByMilestone',
+  description: 'Get all issues in a specific sprint (milestone). Returns the complete list with automatic pagination.',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
     milestoneId: z.string().describe('Sprint (Milestone) ID'),

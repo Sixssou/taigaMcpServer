@@ -103,6 +103,7 @@ export const addCommentTool = {
  */
 export const listCommentsTool = {
   name: 'listComments',
+  description: 'List all comments for an Issue, User Story, or Task. Returns the complete history with automatic pagination.',
   schema: {
     itemType: z.enum(['issue', 'user_story', 'task']).describe('Type of item to get comments for'),
     itemId: z.number().describe('ID of the issue, user story, or task'),
