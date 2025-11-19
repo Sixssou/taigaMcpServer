@@ -110,6 +110,7 @@ export const getTaskTool = {
 📅 Timeline:
 - Created: ${formatDateTime(task.created_date)}
 - Modified: ${formatDateTime(task.modified_date)}
+- Due Date: ${getSafeValue(task.due_date, STATUS_LABELS.NOT_SET)}
 
 📝 Description:
 ${getSafeValue(task.description, STATUS_LABELS.NO_DESCRIPTION)}
@@ -136,8 +137,9 @@ export const updateTaskTool = {
     status: z.string().optional().describe('Status name (e.g., "New", "In progress", "Done")'),
     tags: z.array(z.string()).optional().describe('Array of tags'),
     assignedTo: z.string().optional().describe('Username or user ID to assign to (or "unassign" to remove assignment)'),
+    dueDate: z.string().optional().describe('Due date in YYYY-MM-DD format (e.g., "2025-12-31") or null to remove'),
   },
-  handler: async ({ taskIdentifier, projectIdentifier, subject, description, status, tags, assignedTo }) => {
+  handler: async ({ taskIdentifier, projectIdentifier, subject, description, status, tags, assignedTo, dueDate }) => {
     try {
       // Get current task
       const currentTask = await resolveTask(taskIdentifier, projectIdentifier);
@@ -149,6 +151,23 @@ export const updateTaskTool = {
       if (subject !== undefined) updateData.subject = subject;
       if (description !== undefined) updateData.description = description;
       if (tags !== undefined) updateData.tags = tags;
+
+      // Handle due date
+      if (dueDate !== undefined) {
+        // Allow null or "null" to clear the due date
+        if (dueDate === null || dueDate.toLowerCase() === 'null' || dueDate === '') {
+          updateData.due_date = null;
+        } else {
+          // Validate date format (YYYY-MM-DD)
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (!dateRegex.test(dueDate)) {
+            return createErrorResponse(
+              `Invalid due date format: "${dueDate}". Expected format: YYYY-MM-DD (e.g., "2025-12-31")`
+            );
+          }
+          updateData.due_date = dueDate;
+        }
+      }
 
       // Get status ID if a status name was provided
       if (status) {
@@ -202,6 +221,7 @@ Task: #${updatedTask.ref} - ${updatedTask.subject}
 Project: ${getSafeValue(updatedTask.project_extra_info?.name)}
 Status: ${getSafeValue(updatedTask.status_extra_info?.name)}
 Assigned to: ${getSafeValue(updatedTask.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+Due Date: ${getSafeValue(updatedTask.due_date, STATUS_LABELS.NOT_SET)}
 User Story: ${updatedTask.user_story_extra_info ? `#${updatedTask.user_story_extra_info.ref} - ${updatedTask.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}`;
 
       return createSuccessResponse(updateDetails);
