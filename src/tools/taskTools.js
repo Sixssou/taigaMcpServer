@@ -34,20 +34,38 @@ export const createTaskTool = {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
 
-      // Get user story ID if a reference number was provided
+      // Get user story ID - support both reference numbers (#32 or 32) and IDs
       let userStoryId = userStoryIdentifier;
+      let refNumber = null;
+
+      // Check if it's a reference number (with or without #)
       if (userStoryIdentifier.startsWith('#')) {
-        // Remove the # prefix
-        const refNumber = userStoryIdentifier.substring(1);
-        // Get all user stories for the project
+        refNumber = userStoryIdentifier.substring(1);
+      } else {
+        // If it's a small number, likely a reference rather than an ID
+        const numValue = parseInt(userStoryIdentifier, 10);
+        if (!isNaN(numValue) && numValue < 10000) {
+          refNumber = userStoryIdentifier;
+        }
+      }
+
+      // If we identified it as a reference, resolve it to ID
+      if (refNumber !== null) {
         const userStories = await taigaService.listUserStories(projectId);
-        // Find the user story with the matching reference number
         const userStory = userStories.find(us => us.ref.toString() === refNumber);
         if (userStory) {
           userStoryId = userStory.id;
+          console.log(`✅ Resolved User Story reference #${refNumber} to internal ID: ${userStoryId}`);
         } else {
-          throw new Error(`User story with reference ${userStoryIdentifier} not found`);
+          // Provide helpful error with available references
+          const availableRefs = userStories.map(us => `#${us.ref}`).slice(0, 10).join(', ');
+          throw new Error(
+            `User story with reference #${refNumber} not found in project ${projectId}.\n` +
+            `Available references: ${availableRefs}${userStories.length > 10 ? '...' : ''}`
+          );
         }
+      } else {
+        console.log(`ℹ️ Using User Story identifier as internal ID: ${userStoryId}`);
       }
 
       // Get status ID if a status name was provided

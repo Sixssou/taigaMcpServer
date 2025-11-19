@@ -285,11 +285,64 @@ export class TaigaService {
   async createTask(taskData) {
     try {
       const client = await createAuthenticatedClient();
+
+      // Log the payload for debugging
+      console.log('📤 Creating task with payload:', JSON.stringify({
+        project: taskData.project,
+        user_story: taskData.user_story,
+        subject: taskData.subject,
+        status: taskData.status,
+        tags: taskData.tags,
+        description: taskData.description ? `${taskData.description.substring(0, 50)}...` : undefined
+      }, null, 2));
+
       const response = await client.post(API_ENDPOINTS.TASKS, taskData);
       return response.data;
     } catch (error) {
-      console.error('Failed to create task:', error.message);
-      throw new Error(ERROR_MESSAGES.FAILED_TO_CREATE_TASK);
+      console.error('❌ Failed to create task:', error.message);
+
+      // Extract detailed error information from API response
+      let detailedError = ERROR_MESSAGES.FAILED_TO_CREATE_TASK;
+
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        console.error('📋 API Response Status:', status);
+        console.error('📋 API Response Data:', JSON.stringify(data, null, 2));
+
+        // Build detailed error message
+        const errorDetails = [];
+
+        if (status === 400) {
+          errorDetails.push('Bad Request - Invalid parameters');
+
+          // Extract field-specific errors
+          if (data && typeof data === 'object') {
+            Object.entries(data).forEach(([field, messages]) => {
+              if (Array.isArray(messages)) {
+                errorDetails.push(`  - ${field}: ${messages.join(', ')}`);
+              } else if (typeof messages === 'string') {
+                errorDetails.push(`  - ${field}: ${messages}`);
+              }
+            });
+          }
+        } else if (status === 401) {
+          errorDetails.push('Unauthorized - Authentication failed');
+        } else if (status === 403) {
+          errorDetails.push('Forbidden - Insufficient permissions');
+        } else if (status === 404) {
+          errorDetails.push('Not Found - Project or User Story does not exist');
+        } else if (status === 500) {
+          errorDetails.push('Internal Server Error - Taiga API issue');
+        }
+
+        if (errorDetails.length > 0) {
+          detailedError = `${ERROR_MESSAGES.FAILED_TO_CREATE_TASK}\n${errorDetails.join('\n')}`;
+        }
+      }
+
+      throw new Error(detailedError);
     }
   }
 
