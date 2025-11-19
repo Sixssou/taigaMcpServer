@@ -66,7 +66,7 @@ export const createEpicTool = {
  */
 export const listEpicsTool = {
   name: 'listEpics',
-  description: 'List all Epics in a project',
+  description: 'List all Epics in a project. Returns the complete list with automatic pagination.',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
   },

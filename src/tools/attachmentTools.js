@@ -96,7 +96,7 @@ export const uploadAttachmentTool = {
  */
 export const listAttachmentsTool = {
   name: 'listAttachments',
-  description: 'List all attachments for an Issue, User Story, or Task',
+  description: 'List all attachments for an Issue, User Story, or Task. Returns the complete list with automatic pagination.',
   schema: {
     itemType: z.enum(['issue', 'user_story', 'task']).describe('Type of item to list attachments for'),
     itemId: z.number().describe('ID of the item to list attachments for')
