@@ -21,6 +21,54 @@ export class TaigaService {
   }
 
   /**
+   * Helper function to fetch all pages from a paginated endpoint
+   * @private
+   * @param {Object} client - Authenticated axios client
+   * @param {string} endpoint - API endpoint
+   * @param {Object} params - Query parameters
+   * @returns {Promise<Array>} - All results from all pages
+   */
+  async fetchAllPages(client, endpoint, params = {}) {
+    const allResults = [];
+    let currentPage = 1;
+    const pageSize = 100; // Use larger page size to minimize requests
+
+    while (true) {
+      const response = await client.get(endpoint, {
+        params: {
+          ...params,
+          page: currentPage,
+          page_size: pageSize
+        }
+      });
+
+      const results = response.data;
+
+      // If no results, we're done
+      if (!results || results.length === 0) {
+        break;
+      }
+
+      allResults.push(...results);
+
+      // If we got fewer results than page_size, we've reached the last page
+      if (results.length < pageSize) {
+        break;
+      }
+
+      // Check pagination headers if available
+      const totalCount = response.headers['x-pagination-count'];
+      if (totalCount && allResults.length >= parseInt(totalCount)) {
+        break;
+      }
+
+      currentPage++;
+    }
+
+    return allResults;
+  }
+
+  /**
    * Get a list of all projects the user has access to
    * @returns {Promise<Array>} - List of projects
    */
@@ -32,14 +80,8 @@ export class TaigaService {
       const currentUser = await this.getCurrentUser();
       const userId = currentUser.id;
 
-      // Then get projects where user is a member
-      const response = await client.get(API_ENDPOINTS.PROJECTS, {
-        params: {
-          member: userId
-        }
-      });
-
-      return response.data;
+      // Then get projects where user is a member (with pagination)
+      return await this.fetchAllPages(client, API_ENDPOINTS.PROJECTS, { member: userId });
     } catch (error) {
       console.error('Failed to list projects:', error.message);
       throw new Error(ERROR_MESSAGES.FAILED_TO_LIST_PROJECTS);
@@ -86,10 +128,7 @@ export class TaigaService {
   async listUserStories(projectId) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(API_ENDPOINTS.USER_STORIES, {
-        params: { project: projectId }
-      });
-      return response.data;
+      return await this.fetchAllPages(client, API_ENDPOINTS.USER_STORIES, { project: projectId });
     } catch (error) {
       console.error(`Failed to list user stories for project ${projectId}:`, error.message);
       throw new Error(ERROR_MESSAGES.FAILED_TO_LIST_USER_STORIES);
@@ -341,10 +380,7 @@ export class TaigaService {
   async listIssues(projectId) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(API_ENDPOINTS.ISSUES, {
-        params: { project: projectId }
-      });
-      return response.data;
+      return await this.fetchAllPages(client, API_ENDPOINTS.ISSUES, { project: projectId });
     } catch (error) {
       console.error(`Failed to list issues for project ${projectId}:`, error.message);
       throw new Error(ERROR_MESSAGES.FAILED_TO_LIST_ISSUES);
@@ -499,10 +535,7 @@ export class TaigaService {
   async listMilestones(projectId) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(API_ENDPOINTS.MILESTONES, {
-        params: { project: projectId }
-      });
-      return response.data;
+      return await this.fetchAllPages(client, API_ENDPOINTS.MILESTONES, { project: projectId });
     } catch (error) {
       console.error(`Failed to list milestones for project ${projectId}:`, error.message);
       throw new Error(ERROR_MESSAGES.FAILED_TO_LIST_MILESTONES);
@@ -586,13 +619,10 @@ export class TaigaService {
   async getIssuesByMilestone(projectId, milestoneId) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(API_ENDPOINTS.ISSUES, {
-        params: { 
-          project: projectId,
-          milestone: milestoneId
-        }
+      return await this.fetchAllPages(client, API_ENDPOINTS.ISSUES, {
+        project: projectId,
+        milestone: milestoneId
       });
-      return response.data;
     } catch (error) {
       console.error(`Failed to get issues for milestone ${milestoneId}:`, error.message);
       throw new Error('Failed to get issues by milestone from Taiga');
@@ -664,7 +694,7 @@ export class TaigaService {
 
   /**
    * Get history/comments for an item
-   * @param {string} itemType - Type of item ('issue', 'user_story', 'task')  
+   * @param {string} itemType - Type of item ('issue', 'user_story', 'task')
    * @param {number} itemId - ID of the item
    * @returns {Promise<Array>} - History entries including comments
    */
@@ -672,8 +702,7 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
       const objectType = this.getHistoryObjectType(itemType);
-      const response = await client.get(`${API_ENDPOINTS.HISTORY}/${objectType}/${itemId}`);
-      return response.data;
+      return await this.fetchAllPages(client, `${API_ENDPOINTS.HISTORY}/${objectType}/${itemId}`, {});
     } catch (error) {
       console.error('Failed to get item history:', error.message);
       throw new Error('Failed to get item history from Taiga');
@@ -999,14 +1028,7 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
       const endpoint = this.getAttachmentEndpoint(itemType);
-      
-      const response = await client.get(endpoint, {
-        params: {
-          object_id: itemId
-        }
-      });
-      
-      return response.data;
+      return await this.fetchAllPages(client, endpoint, { object_id: itemId });
     } catch (error) {
       console.error('Failed to list attachments:', error.message);
       throw new Error('Failed to list attachments from Taiga');
@@ -1121,12 +1143,7 @@ export class TaigaService {
   async listEpics(projectId) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(API_ENDPOINTS.EPICS, {
-        params: {
-          project: projectId
-        }
-      });
-      return response.data;
+      return await this.fetchAllPages(client, API_ENDPOINTS.EPICS, { project: projectId });
     } catch (error) {
       console.error('Failed to list epics:', error.message);
       throw new Error('Failed to list epics from Taiga');
@@ -1250,10 +1267,7 @@ export class TaigaService {
   async listWikiPages(projectId) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(API_ENDPOINTS.WIKI, {
-        params: { project: projectId }
-      });
-      return response.data;
+      return await this.fetchAllPages(client, API_ENDPOINTS.WIKI, { project: projectId });
     } catch (error) {
       console.error('Failed to list wiki pages:', error.message);
       throw new Error(ERROR_MESSAGES.FAILED_TO_LIST_WIKI);
