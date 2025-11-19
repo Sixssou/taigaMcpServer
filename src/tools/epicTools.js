@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { TaigaService } from '../taigaService.js';
-import { createSuccessResponse, createErrorResponse, resolveProjectId } from '../utils.js';
+import { createSuccessResponse, createErrorResponse, resolveProjectId, resolveUserStory } from '../utils.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants.js';
 
 const taigaService = new TaigaService();
@@ -239,43 +239,41 @@ export const linkStoryToEpicTool = {
   name: 'linkStoryToEpic',
   description: 'Link a User Story to an Epic for better organization',
   schema: {
-    userStoryId: z.string().describe('User Story ID'),
+    userStoryId: z.string().describe('User Story ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
     epicId: z.string().describe('Epic ID'),
   },
-  
-  handler: async ({ userStoryId, epicId }) => {
+
+  handler: async ({ userStoryId, projectIdentifier, epicId }) => {
     try {
       if (!taigaService.isAuthenticated()) {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // Convert string IDs to numbers for API compatibility
-      const userStoryIdNum = parseInt(userStoryId, 10);
+      // Resolve user story using the same logic as other tools
+      const userStory = await resolveUserStory(userStoryId, projectIdentifier);
+
+      // Convert epic ID to number for API compatibility
       const epicIdNum = parseInt(epicId, 10);
-      
-      if (isNaN(userStoryIdNum) || isNaN(epicIdNum)) {
-        return createErrorResponse('Invalid ID format. Both User Story ID and Epic ID must be numeric.');
+
+      if (isNaN(epicIdNum)) {
+        return createErrorResponse('Invalid Epic ID format. Epic ID must be numeric.');
       }
 
-      // Verify that both the user story and epic exist
-      try {
-        await taigaService.getUserStory(userStoryIdNum);
-      } catch (error) {
-        return createErrorResponse(`User Story #${userStoryId} not found: ${error.message}`);
-      }
-
+      // Verify that the epic exists
       try {
         await taigaService.getEpic(epicIdNum);
       } catch (error) {
         return createErrorResponse(`Epic #${epicId} not found: ${error.message}`);
       }
 
-      const result = await taigaService.linkStoryToEpic(userStoryIdNum, epicIdNum);
-      
+      // Use the resolved user story's internal ID for the API call
+      const result = await taigaService.linkStoryToEpic(userStory.id, epicIdNum);
+
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.STORY_LINKED_TO_EPIC}\n\n` +
         `🔗 **故事連結成功**\n` +
-        `- User Story: #${userStoryId} "${result.subject}"\n` +
+        `- User Story: #${userStory.ref} "${result.subject}"\n` +
         `- Epic: #${epicId} "${result.epic?.subject || 'Epic'}"\n` +
         `- 連結時間: ${new Date().toLocaleString()}\n` +
         `- 專案: ${result.project_extra_info?.name || result.project}`
@@ -298,28 +296,26 @@ export const unlinkStoryFromEpicTool = {
   name: 'unlinkStoryFromEpic',
   description: 'Remove the link between a User Story and Epic',
   schema: {
-    userStoryId: z.string().describe('User Story ID'),
+    userStoryId: z.string().describe('User Story ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
   },
-  
-  handler: async ({ userStoryId }) => {
+
+  handler: async ({ userStoryId, projectIdentifier }) => {
     try {
       if (!taigaService.isAuthenticated()) {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // Convert string ID to number for API compatibility
-      const userStoryIdNum = parseInt(userStoryId, 10);
-      
-      if (isNaN(userStoryIdNum)) {
-        return createErrorResponse('Invalid ID format. User Story ID must be numeric.');
-      }
+      // Resolve user story using the same logic as other tools
+      const userStory = await resolveUserStory(userStoryId, projectIdentifier);
 
-      const result = await taigaService.unlinkStoryFromEpic(userStoryIdNum);
-      
+      // Use the resolved user story's internal ID for the API call
+      const result = await taigaService.unlinkStoryFromEpic(userStory.id);
+
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.STORY_UNLINKED_FROM_EPIC}\n\n` +
         `🔓 **故事取消連結**\n` +
-        `- User Story: #${userStoryId} "${result.subject}"\n` +
+        `- User Story: #${userStory.ref} "${result.subject}"\n` +
         `- 已從Epic移除\n` +
         `- 操作時間: ${new Date().toLocaleString()}\n` +
         `- 專案: ${result.project_extra_info?.name || result.project}`
