@@ -273,6 +273,67 @@ export class TaigaService {
   }
 
   /**
+   * Get details of a specific task
+   * @param {string} taskId - Task ID
+   * @returns {Promise<Object>} - Task details
+   */
+  async getTask(taskId) {
+    try {
+      const client = await createAuthenticatedClient();
+      const url = `${API_ENDPOINTS.TASKS}/${taskId}`;
+      const response = await client.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get task ${taskId}:`, error.message);
+      throw new Error(ERROR_MESSAGES.FAILED_TO_GET_TASK || 'Failed to get task from Taiga');
+    }
+  }
+
+  /**
+   * Get task by reference number
+   * @param {string} ref - Task reference number
+   * @param {string} projectId - Project ID
+   * @returns {Promise<Object>} - Task details
+   */
+  async getTaskByRef(ref, projectId) {
+    try {
+      const client = await createAuthenticatedClient();
+      const url = `${API_ENDPOINTS.TASKS}/by_ref`;
+      const params = { ref, project: projectId };
+      const response = await client.get(url, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get task by reference:', error.message);
+      throw new Error(ERROR_MESSAGES.TASK_NOT_FOUND || 'Failed to get task by reference from Taiga');
+    }
+  }
+
+  /**
+   * Update a task
+   * @param {number} taskId - Task ID
+   * @param {Object} updateData - Data to update
+   * @returns {Promise<Object>} - Updated task
+   */
+  async updateTask(taskId, updateData) {
+    try {
+      const client = await createAuthenticatedClient();
+
+      // Get current task to get version for update
+      const currentTask = await this.getTask(taskId);
+      const dataWithVersion = {
+        ...updateData,
+        version: currentTask.version
+      };
+
+      const response = await client.patch(`${API_ENDPOINTS.TASKS}/${taskId}`, dataWithVersion);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update task:', error.message);
+      throw new Error('Failed to update task in Taiga');
+    }
+  }
+
+  /**
    * List issues for a project
    * @param {string} projectId - Project ID
    * @returns {Promise<Array>} - List of issues

@@ -111,6 +111,51 @@ export async function resolveUserStory(userStoryIdentifier, projectIdentifier) {
 }
 
 /**
+ * Resolve task identifier to task object
+ * Handles direct IDs and reference numbers (with # prefix)
+ * @param {string} taskIdentifier - Task ID or reference number
+ * @param {string} [projectIdentifier] - Project ID or slug (required for reference numbers)
+ * @returns {Promise<Object>} - Task object
+ */
+export async function resolveTask(taskIdentifier, projectIdentifier) {
+  // Handle #-prefixed reference numbers
+  if (taskIdentifier.startsWith('#')) {
+    if (!projectIdentifier) {
+      throw new Error('Project identifier is required when using task reference number');
+    }
+
+    const projectId = await resolveProjectId(projectIdentifier);
+    const ref = taskIdentifier.substring(1);
+    return await taigaService.getTaskByRef(ref, projectId);
+  }
+
+  // For pure numbers, try both approaches: first as ID, then as reference number
+  if (/^\d+$/.test(taskIdentifier)) {
+    // First try as direct Task ID
+    try {
+      return await taigaService.getTask(taskIdentifier);
+    } catch (error) {
+      // If that fails and we have a project identifier, try as reference number
+      if (projectIdentifier) {
+        try {
+          const projectId = await resolveProjectId(projectIdentifier);
+          return await taigaService.getTaskByRef(taskIdentifier, projectId);
+        } catch (refError) {
+          // If both fail, throw a more helpful error
+          throw new Error(`Task not found by ID "${taskIdentifier}" or reference number "#${taskIdentifier}" in project. Original errors: ID lookup: ${error.message}, Ref lookup: ${refError.message}`);
+        }
+      } else {
+        // No project identifier available, can only try ID
+        throw new Error(`Task ID "${taskIdentifier}" not found. If this is a reference number, please provide projectIdentifier or use "#${taskIdentifier}" format.`);
+      }
+    }
+  }
+
+  // For non-numeric strings, treat as direct ID
+  return await taigaService.getTask(taskIdentifier);
+}
+
+/**
  * Find status ID by name
  * @param {Array} statuses - Array of status objects
  * @param {string} statusName - Status name to find
