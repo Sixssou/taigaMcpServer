@@ -183,7 +183,7 @@ src/
     └── wikiTools.js     # Wiki management tools
 ```
 
-### MCP Tool Categories (42 tools)
+### MCP Tool Categories (44 tools)
 
 #### 🔐 Authentication Tools (1 tool)
 - `authenticate` - Taiga user authentication
@@ -210,8 +210,10 @@ src/
 - `listUserStories` - List project user stories
 - `createUserStory` - Create user stories
 
-#### ✅ Task Management (1 tool)
+#### ✅ Task Management (3 tools)
 - `createTask` - Create tasks (linked to user stories)
+- `getTask` - Get task details (supports ID and reference number)
+- `updateTask` - Update task properties (subject, description, status, assignee, tags)
 
 #### 🚀 Batch Operations (3 tools)
 - `batchCreateIssues` - Bulk create Issues (up to 20 items)
