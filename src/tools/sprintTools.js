@@ -5,8 +5,9 @@
 import { z } from 'zod';
 import { TaigaService } from '../taigaService.js';
 import { RESPONSE_TEMPLATES, SUCCESS_MESSAGES } from '../constants.js';
-import { 
+import {
   resolveProjectId,
+  resolveMilestone,
   formatSprintList,
   formatDate,
   formatSprintIssues,
@@ -50,16 +51,18 @@ export const listSprintsTool = {
  */
 export const getSprintStatsTool = {
   name: 'getMilestoneStats',
+  description: 'Get detailed statistics for a specific sprint (milestone). Accepts sprint ID or name.',
   schema: {
-    milestoneId: z.string().describe('Milestone (Sprint) ID'),
+    milestoneIdentifier: z.string().describe('Milestone (Sprint) ID or name (e.g., "123" or "Sprint 1" - auto-detects format)'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using milestone name)'),
   },
-  handler: async ({ milestoneId }) => {
+  handler: async ({ milestoneIdentifier, projectIdentifier }) => {
     try {
-      // Get both milestone details and statistics
-      const [milestone, stats] = await Promise.all([
-        taigaService.getMilestone(milestoneId),
-        taigaService.getMilestoneStats(milestoneId)
-      ]);
+      // Resolve milestone using the same logic as other tools
+      const milestone = await resolveMilestone(milestoneIdentifier, projectIdentifier);
+
+      // Get statistics using the resolved milestone's ID
+      const stats = await taigaService.getMilestoneStats(milestone.id);
 
       const startDate = formatDate(milestone.estimated_start);
       const endDate = formatDate(milestone.estimated_finish);
@@ -142,17 +145,17 @@ export const getIssuesBySprintTool = {
   description: 'Get all issues in a specific sprint (milestone). Returns the complete list with automatic pagination.',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
-    milestoneId: z.string().describe('Sprint (Milestone) ID'),
+    milestoneIdentifier: z.string().describe('Sprint (Milestone) ID or name (e.g., "123" or "Sprint 1" - auto-detects format)'),
   },
-  handler: async ({ projectIdentifier, milestoneId }) => {
+  handler: async ({ projectIdentifier, milestoneIdentifier }) => {
     try {
       const projectId = await resolveProjectId(projectIdentifier);
 
-      // Get milestone details and issues
-      const [milestone, issues] = await Promise.all([
-        taigaService.getMilestone(milestoneId),
-        taigaService.getIssuesByMilestone(projectId, milestoneId)
-      ]);
+      // Resolve milestone using the same logic as other tools
+      const milestone = await resolveMilestone(milestoneIdentifier, projectIdentifier);
+
+      // Get issues using the resolved milestone's ID
+      const issues = await taigaService.getIssuesByMilestone(projectId, milestone.id);
 
       if (issues.length === 0) {
         return createErrorResponse(`No issues found in Sprint: ${milestone.name}`);

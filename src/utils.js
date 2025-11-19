@@ -156,6 +156,63 @@ export async function resolveTask(taskIdentifier, projectIdentifier) {
 }
 
 /**
+ * Resolve milestone identifier to milestone object
+ * Handles direct IDs and milestone names
+ * @param {string} milestoneIdentifier - Milestone ID or name
+ * @param {string} projectIdentifier - Project ID or slug (required for name resolution)
+ * @returns {Promise<Object>} - Milestone object
+ */
+export async function resolveMilestone(milestoneIdentifier, projectIdentifier) {
+  // If it's a pure number, try as direct ID first
+  if (/^\d+$/.test(milestoneIdentifier)) {
+    try {
+      return await taigaService.getMilestone(milestoneIdentifier);
+    } catch (error) {
+      // If that fails and we have a project identifier, try by name
+      if (projectIdentifier) {
+        const projectId = await resolveProjectId(projectIdentifier);
+        const milestones = await taigaService.listMilestones(projectId);
+        const milestone = milestones.find(m =>
+          m.name === milestoneIdentifier ||
+          m.name.toLowerCase() === milestoneIdentifier.toLowerCase()
+        );
+
+        if (milestone) {
+          return milestone;
+        }
+
+        // If both fail, throw error
+        throw new Error(`Milestone not found by ID "${milestoneIdentifier}" or name in project. Original error: ${error.message}`);
+      } else {
+        // No project identifier available, can only try ID
+        throw new Error(`Milestone ID "${milestoneIdentifier}" not found. If this is a name, please provide projectIdentifier.`);
+      }
+    }
+  }
+
+  // For non-numeric strings, treat as name and search in project
+  if (!projectIdentifier) {
+    throw new Error('Project identifier is required when using milestone name');
+  }
+
+  const projectId = await resolveProjectId(projectIdentifier);
+  const milestones = await taigaService.listMilestones(projectId);
+  const milestone = milestones.find(m =>
+    m.name === milestoneIdentifier ||
+    m.name.toLowerCase() === milestoneIdentifier.toLowerCase()
+  );
+
+  if (!milestone) {
+    const availableMilestones = milestones.map(m => `- ${m.name} (ID: ${m.id})`).join('\n');
+    throw new Error(
+      `Milestone "${milestoneIdentifier}" not found in project. Available milestones:\n${availableMilestones}`
+    );
+  }
+
+  return milestone;
+}
+
+/**
  * Find status ID by name
  * @param {Array} statuses - Array of status objects
  * @param {string} statusName - Status name to find
