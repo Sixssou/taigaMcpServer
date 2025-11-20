@@ -1,49 +1,67 @@
-# Dockerfile for Taiga REST API (Flattened - No Workspaces)
-FROM node:20-alpine
-
+# Multi-stage Dockerfile for Taiga REST API
+FROM node:20-alpine AS base
 WORKDIR /app
-
-# Install system dependencies
 RUN apk add --no-cache dumb-init
 
-# Copy ALL package.json files
-COPY package*.json ./
-COPY packages/taiga-core/package.json ./packages/taiga-core/
-COPY packages/taiga-core/src ./packages/taiga-core/src
-COPY packages/taiga-core/tsconfig.json ./packages/taiga-core/
-
-# Build taiga-core first
+# ========================================
+# Build taiga-core
+# ========================================
+FROM base AS build-core
 WORKDIR /app/packages/taiga-core
+
+# Copy taiga-core files
+COPY packages/taiga-core/package.json ./
+COPY packages/taiga-core/src ./src
+COPY packages/taiga-core/tsconfig.json ./
+
+# Install dependencies and build
 RUN npm install --legacy-peer-deps
 RUN npm run build
 
-# Now set up rest-api in its own space
+# Create a tarball of the built package
+RUN npm pack
+
+# ========================================
+# Build REST API
+# ========================================
+FROM base AS build-api
 WORKDIR /app/rest-api
+
+# Copy package files
 COPY packages/taiga-rest-api/package.json ./
 COPY packages/taiga-rest-api/tsconfig.json ./
 COPY packages/taiga-rest-api/src ./src
 
-# Install rest-api dependencies (express, etc) directly here
+# Copy the tarball from build-core stage
+COPY --from=build-core /app/packages/taiga-core/*.tgz /tmp/
+
+# Modify package.json to use the tarball instead of file: reference
+RUN sed -i 's|"@taiga-monorepo/core": "file:../taiga-core"|"@taiga-monorepo/core": "file:/tmp/taiga-monorepo-core-2.0.0.tgz"|g' package.json
+
+# Install dependencies including the local tarball
 RUN npm install --legacy-peer-deps
 
-# Copy built taiga-core into node_modules
-RUN mkdir -p node_modules/@taiga-monorepo/core && \
-    cp -r /app/packages/taiga-core/* node_modules/@taiga-monorepo/core/
-
-# Build rest-api
+# Build the REST API
 RUN npm run build
 
-# Set production environment
+# ========================================
+# Production stage
+# ========================================
+FROM base AS production
+WORKDIR /app
+
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Health check
+# Copy built application and dependencies
+COPY --from=build-api /app/rest-api/dist ./dist
+COPY --from=build-api /app/rest-api/node_modules ./node_modules
+COPY --from=build-api /app/rest-api/package.json ./
+
+EXPOSE 3000
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Expose REST API port
-EXPOSE 3000
-
-# Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/server.js"]
