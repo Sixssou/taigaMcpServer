@@ -42,7 +42,10 @@ services:
         max-file: "3"
 
   # ========================= N8N WORKFLOW AUTOMATION =========================
+  # Note: Disabled by default - use existing n8n instance or start with: docker-compose --profile n8n-standalone up
   n8n:
+    profiles:
+      - n8n-standalone
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
