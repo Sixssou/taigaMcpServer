@@ -286,16 +286,6 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
 
-      // Log the payload for debugging
-      console.log('Creating task with payload:', JSON.stringify({
-        project: taskData.project,
-        user_story: taskData.user_story,
-        subject: taskData.subject,
-        status: taskData.status,
-        tags: taskData.tags,
-        description: taskData.description ? `${taskData.description.substring(0, 50)}...` : undefined
-      }, null, 2));
-
       const response = await client.post(API_ENDPOINTS.TASKS, taskData);
       return response.data;
     } catch (error) {
@@ -1255,8 +1245,6 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
 
-      console.log(`Linking user story #${userStoryId} to epic #${epicId}...`);
-
       // Use the dedicated endpoint for creating epic-user story relationships
       // POST /epics/{epicId}/related_userstories
       const endpoint = API_ENDPOINTS.EPIC_RELATED_USERSTORIES(epicId);
@@ -1265,15 +1253,7 @@ export class TaigaService {
         user_story: userStoryId
       };
 
-      console.log(`Sending POST request to ${endpoint}`);
-      console.log(`Request data:`, JSON.stringify(requestData, null, 2));
-
       const response = await client.post(endpoint, requestData);
-
-      console.log(`Response status:`, response.status);
-      console.log(`Related user story created:`, response.data.id);
-      console.log(`Epic ID:`, response.data.epic);
-      console.log(`User Story ID:`, response.data.user_story);
 
       // Verify that the relationship was created
       if (response.data.epic !== epicId || response.data.user_story !== userStoryId) {
@@ -1282,7 +1262,6 @@ export class TaigaService {
 
       // Fetch the updated user story to return complete information
       const updatedStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      console.log(`Updated user story epic field:`, updatedStory.data.epic);
 
       return updatedStory.data;
     } catch (error) {
@@ -1312,14 +1291,10 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
 
-      console.log(`Unlinking user story #${userStoryId} from epic...`);
-
       // First, get the current user story to find the related user story link ID
       const currentStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      console.log(`Current story epic value:`, currentStory.data.epic);
 
       if (!currentStory.data.epic) {
-        console.log(`User story is not linked to any epic`);
         return currentStory.data;
       }
 
@@ -1336,19 +1311,13 @@ export class TaigaService {
         throw new Error(`Related user story relationship not found for story #${userStoryId} in epic #${epicId}`);
       }
 
-      console.log(`Found relationship ID: ${relationship.id}`);
-
       // Delete the relationship using DELETE /epics/{epicId}/related_userstories/{relationshipId}
       const deleteEndpoint = `${relatedStoriesEndpoint}/${relationship.id}`;
-      console.log(`Sending DELETE request to ${deleteEndpoint}`);
 
       await client.delete(deleteEndpoint);
 
-      console.log(`User story unlinked successfully`);
-
       // Fetch and return the updated user story
       const updatedStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      console.log(`Updated user story epic field:`, updatedStory.data.epic);
 
       return updatedStory.data;
     } catch (error) {
