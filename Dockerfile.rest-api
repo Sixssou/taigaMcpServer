@@ -27,8 +27,8 @@ COPY packages/taiga-rest-api/src ./src
 RUN npm install --legacy-peer-deps
 
 # Copy built taiga-core into node_modules
-RUN mkdir -p node_modules/@taiga-monorepo && \
-    cp -r /app/packages/taiga-core node_modules/@taiga-monorepo/core
+RUN mkdir -p node_modules/@taiga-monorepo/core && \
+    cp -r /app/packages/taiga-core/* node_modules/@taiga-monorepo/core/
 
 # Build rest-api
 RUN npm run build
