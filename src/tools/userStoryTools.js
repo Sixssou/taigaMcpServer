@@ -212,7 +212,7 @@ export const deleteUserStoryTool = {
     try {
       // Get user story details before deletion for confirmation message
       const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
-      
+
       await taigaService.deleteUserStory(userStory.id);
 
       const deletionDetails = `${SUCCESS_MESSAGES.USER_STORY_DELETED}
@@ -223,6 +223,92 @@ Project: ${getSafeValue(userStory.project_extra_info?.name)}`;
       return createSuccessResponse(deletionDetails);
     } catch (error) {
       return createErrorResponse(`Failed to delete user story: ${error.message}`);
+    }
+  }
+};
+
+/**
+ * Tool to add user story to a sprint (milestone)
+ */
+export const addUserStoryToSprintTool = {
+  name: 'addUserStoryToSprint',
+  schema: {
+    userStoryIdentifier: z.string().describe('User story ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
+    sprintIdentifier: z.string().describe('Sprint ID or name (or "remove" to remove from sprint)'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+  },
+  handler: async ({ userStoryIdentifier, sprintIdentifier, projectIdentifier }) => {
+    try {
+      // Resolve the user story first
+      const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
+
+      let milestoneId = null;
+
+      // Handle sprint removal
+      if (sprintIdentifier.toLowerCase() === 'remove' || sprintIdentifier.toLowerCase() === 'none') {
+        milestoneId = null;
+      } else {
+        // Get project ID for sprint lookup
+        const projectId = userStory.project || (projectIdentifier ? await resolveProjectId(projectIdentifier) : null);
+        if (!projectId) {
+          return createErrorResponse('Could not determine project ID for sprint lookup');
+        }
+
+        // Try to find sprint by ID first, then by name
+        let sprint = null;
+
+        // If it's a number, try to get sprint by ID
+        if (!isNaN(sprintIdentifier)) {
+          try {
+            sprint = await taigaService.getMilestone(sprintIdentifier);
+          } catch (error) {
+            // If getting by ID fails, we'll try by name below
+          }
+        }
+
+        // If not found by ID or not a number, search by name
+        if (!sprint) {
+          const sprints = await taigaService.listMilestones(projectId);
+          sprint = sprints.find(s =>
+            s.name === sprintIdentifier ||
+            s.name.toLowerCase() === sprintIdentifier.toLowerCase()
+          );
+        }
+
+        if (!sprint) {
+          const sprints = await taigaService.listMilestones(projectId);
+          const availableSprints = sprints.map(s =>
+            `- ${s.name} (ID: ${s.id})`
+          ).join('\n');
+
+          return createErrorResponse(
+            `Sprint "${sprintIdentifier}" not found in project. Available sprints:\n${availableSprints}`
+          );
+        }
+
+        milestoneId = sprint.id;
+      }
+
+      // Update the user story with the new milestone
+      const updateData = {
+        milestone: milestoneId
+      };
+
+      const updatedUserStory = await taigaService.updateUserStory(userStory.id, updateData);
+
+      const sprintDetails = `${SUCCESS_MESSAGES.USER_STORY_UPDATED.replace('updated', 'sprint assignment updated')}
+
+User Story: #${updatedUserStory.ref} - ${updatedUserStory.subject}
+Sprint: ${milestoneId ?
+  (updatedUserStory.milestone_extra_info?.name || 'Unknown sprint') :
+  'Removed from sprint'
+}
+Project: ${getSafeValue(updatedUserStory.project_extra_info?.name)}
+Status: ${getSafeValue(updatedUserStory.status_extra_info?.name)}`;
+
+      return createSuccessResponse(sprintDetails);
+    } catch (error) {
+      return createErrorResponse(`Failed to add user story to sprint: ${error.message}`);
     }
   }
 };
