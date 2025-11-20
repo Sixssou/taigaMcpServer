@@ -178,3 +178,88 @@ ${formatSprintIssues(issues)}`;
     }
   }
 };
+
+/**
+ * Tool to update a sprint
+ */
+export const updateSprintTool = {
+  name: 'updateMilestone',
+  description: 'Update a sprint (milestone) with new information. Can update name, dates, and status.',
+  schema: {
+    milestoneIdentifier: z.string().describe('Milestone (Sprint) ID or name (e.g., "123" or "Sprint 1" - auto-detects format)'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using milestone name)'),
+    name: z.string().optional().describe('New sprint name'),
+    estimatedStart: z.string().optional().describe('New estimated start date (YYYY-MM-DD)'),
+    estimatedFinish: z.string().optional().describe('New estimated finish date (YYYY-MM-DD)'),
+    closed: z.boolean().optional().describe('Whether to close/reopen the sprint'),
+  },
+  handler: async ({ milestoneIdentifier, projectIdentifier, name, estimatedStart, estimatedFinish, closed }) => {
+    try {
+      // Resolve milestone using the same logic as other tools
+      const milestone = await resolveMilestone(milestoneIdentifier, projectIdentifier);
+
+      // Build update data object with only provided fields
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (estimatedStart !== undefined) updateData.estimated_start = estimatedStart;
+      if (estimatedFinish !== undefined) updateData.estimated_finish = estimatedFinish;
+      if (closed !== undefined) updateData.closed = closed;
+
+      // Check if there's anything to update
+      if (Object.keys(updateData).length === 0) {
+        return createErrorResponse('No update data provided. Please specify at least one field to update.');
+      }
+
+      // Update the milestone
+      const updatedMilestone = await taigaService.updateMilestone(milestone.id, updateData);
+
+      const updateDetails = `${SUCCESS_MESSAGES.SPRINT_UPDATED}
+
+Name: ${updatedMilestone.name}
+ID: ${updatedMilestone.id}
+Start Date: ${getSafeValue(updatedMilestone.estimated_start, 'Not set')}
+End Date: ${getSafeValue(updatedMilestone.estimated_finish, 'Not set')}
+Project: ${getSafeValue(updatedMilestone.project_extra_info?.name)}
+Status: ${getStatusLabel(updatedMilestone.closed)}`;
+
+      return createSuccessResponse(updateDetails);
+    } catch (error) {
+      return createErrorResponse(`Failed to update sprint: ${error.message}`);
+    }
+  }
+};
+
+/**
+ * Tool to delete a sprint
+ */
+export const deleteSprintTool = {
+  name: 'deleteMilestone',
+  description: 'Delete a sprint (milestone) from a project. WARNING: This action cannot be undone!',
+  schema: {
+    milestoneIdentifier: z.string().describe('Milestone (Sprint) ID or name (e.g., "123" or "Sprint 1" - auto-detects format)'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using milestone name)'),
+  },
+  handler: async ({ milestoneIdentifier, projectIdentifier }) => {
+    try {
+      // Resolve milestone using the same logic as other tools
+      const milestone = await resolveMilestone(milestoneIdentifier, projectIdentifier);
+
+      // Store milestone info before deletion
+      const milestoneName = milestone.name;
+      const milestoneId = milestone.id;
+
+      // Delete the milestone
+      await taigaService.deleteMilestone(milestoneId);
+
+      const deletionDetails = `${SUCCESS_MESSAGES.SPRINT_DELETED}
+
+Deleted Sprint: ${milestoneName}
+ID: ${milestoneId}
+Project: ${getSafeValue(milestone.project_extra_info?.name)}`;
+
+      return createSuccessResponse(deletionDetails);
+    } catch (error) {
+      return createErrorResponse(`Failed to delete sprint: ${error.message}`);
+    }
+  }
+};

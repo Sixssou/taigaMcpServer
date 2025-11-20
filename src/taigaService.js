@@ -696,6 +696,53 @@ export class TaigaService {
   }
 
   /**
+   * Update a milestone (sprint)
+   * @param {string} milestoneId - Milestone ID
+   * @param {Object} updateData - Data to update
+   * @param {string} [updateData.name] - Milestone name
+   * @param {string} [updateData.estimated_start] - Estimated start date (YYYY-MM-DD)
+   * @param {string} [updateData.estimated_finish] - Estimated finish date (YYYY-MM-DD)
+   * @param {boolean} [updateData.closed] - Whether the milestone is closed
+   * @param {number} [updateData.version] - Version number for optimistic locking
+   * @returns {Promise<Object>} - Updated milestone
+   */
+  async updateMilestone(milestoneId, updateData) {
+    try {
+      const client = await createAuthenticatedClient();
+
+      // Get current milestone to get the version number for optimistic locking
+      const currentMilestone = await this.getMilestone(milestoneId);
+
+      // Include version in update data for optimistic locking
+      const dataWithVersion = {
+        ...updateData,
+        version: currentMilestone.version
+      };
+
+      const response = await client.patch(`${API_ENDPOINTS.MILESTONES}/${milestoneId}`, dataWithVersion);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to update milestone ${milestoneId}:`, error.message);
+      throw new Error(ERROR_MESSAGES.FAILED_TO_UPDATE_SPRINT);
+    }
+  }
+
+  /**
+   * Delete a milestone (sprint)
+   * @param {string} milestoneId - Milestone ID
+   * @returns {Promise<void>}
+   */
+  async deleteMilestone(milestoneId) {
+    try {
+      const client = await createAuthenticatedClient();
+      await client.delete(`${API_ENDPOINTS.MILESTONES}/${milestoneId}`);
+    } catch (error) {
+      console.error(`Failed to delete milestone ${milestoneId}:`, error.message);
+      throw new Error(ERROR_MESSAGES.FAILED_TO_DELETE_SPRINT);
+    }
+  }
+
+  /**
    * Add comment to an item (issue, user story, or task)
    * @param {string} itemType - Type of item ('issue', 'user_story', 'task')
    * @param {number} itemId - ID of the item
