@@ -40,6 +40,5 @@ EXPOSE 3000
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
-# Run from the rest-api directory so node_modules are found correctly
-WORKDIR /app/packages/taiga-rest-api
-CMD ["node", "dist/server.js"]
+# Run from root so node_modules are properly resolved
+CMD ["node", "packages/taiga-rest-api/dist/server.js"]
