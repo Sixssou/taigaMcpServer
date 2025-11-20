@@ -65,7 +65,7 @@ export const createTaskTool = {
           );
         }
       } else {
-        console.log(`ℹ️ Using User Story identifier as internal ID: ${userStoryId}`);
+        console.log(`Using User Story identifier as internal ID: ${userStoryId}`);
       }
 
       // Get status ID if a status name was provided

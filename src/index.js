@@ -12,7 +12,7 @@
  * with entirely new architecture, advanced sprint management, issue tracking,
  * and comprehensive Taiga API integration.
  * 
- * 🤖 Developed collaboratively with Claude Code (claude.ai/code)
+ * Developed collaboratively with Claude Code (claude.ai/code)
  * 
  * Licensed under the ISC License
  */

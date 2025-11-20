@@ -20,7 +20,7 @@ import { QUERY_EXAMPLES } from '../query/queryGrammar.js';
 const taigaService = new TaigaService();
 
 /**
- * 高級搜索工具
+ * Advanced search tool
  */
 export const advancedSearchTool = {
   name: 'advancedSearch',
