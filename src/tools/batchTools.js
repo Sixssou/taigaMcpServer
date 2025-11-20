@@ -233,8 +233,8 @@ export const batchCreateTasksTool = {
         const task = tasks[i];
         try {
           const createdTask = await taigaService.createTask({
-            projectId,
-            userStoryId: userStory.id,
+            project: projectId,
+            user_story: userStory.id,
             subject: task.subject,
             description: task.description || '',
             tags: task.tags || []
