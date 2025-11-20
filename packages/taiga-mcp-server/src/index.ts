@@ -413,7 +413,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         const issue = await taigaClient.updateIssue(
           Number(args?.issue_id),
           {
-            assigned_to: args?.assigned_to ? Number(args.assigned_to) : null,
+            assigned_to: args?.assigned_to ? Number(args.assigned_to) : undefined,
             version: Number(args?.version)
           }
         );
