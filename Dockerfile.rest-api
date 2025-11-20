@@ -14,18 +14,8 @@ COPY package*.json ./
 COPY packages/taiga-core/package.json ./packages/taiga-core/
 COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
 
-# Install all dependencies at root level
+# Install all dependencies at root level (npm workspaces will handle all packages)
 RUN npm install --legacy-peer-deps
-
-# Install dependencies in each workspace
-WORKDIR /app/packages/taiga-core
-RUN npm install --legacy-peer-deps
-
-WORKDIR /app/packages/taiga-rest-api
-RUN npm install --legacy-peer-deps
-
-# Back to root for copying source
-WORKDIR /app
 
 # Copy source code
 COPY packages/taiga-core/src ./packages/taiga-core/src
@@ -33,16 +23,9 @@ COPY packages/taiga-core/tsconfig.json ./packages/taiga-core/
 COPY packages/taiga-rest-api/src ./packages/taiga-rest-api/src
 COPY packages/taiga-rest-api/tsconfig.json ./packages/taiga-rest-api/
 
-# Build taiga-core
-WORKDIR /app/packages/taiga-core
-RUN npm run build
-
-# Build taiga-rest-api
-WORKDIR /app/packages/taiga-rest-api
-RUN npm run build
-
-# Back to root
-WORKDIR /app
+# Build both packages from root using npm workspaces
+RUN npm run build:core
+RUN npm run build:api
 
 # Set production environment
 ENV NODE_ENV=production
