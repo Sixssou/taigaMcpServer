@@ -1,48 +1,34 @@
-# Dockerfile for Taiga REST API (Monorepo)
-# Multi-stage build for optimized production image
+# Dockerfile for Taiga REST API (Simplified Single-Stage)
+FROM node:20-alpine
 
-FROM node:20-alpine AS base
 WORKDIR /app
+
+# Install system dependencies
 RUN apk add --no-cache dumb-init
-# Upgrade npm to support workspaces properly
+
+# Upgrade npm
 RUN npm install -g npm@latest
 
-# Install all dependencies (including workspaces)
-FROM base AS deps
-COPY package*.json ./
-COPY packages/taiga-core/package.json ./packages/taiga-core/
-COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
-RUN npm ci && npm cache clean --force
+# Copy everything
+COPY . .
 
-# Build stage
-FROM base AS build
-COPY package*.json ./
-COPY packages/ ./packages/
+# Install all dependencies
+RUN npm install --legacy-peer-deps
 
-# Use npm install instead of npm ci for workspace support
-RUN npm install
+# Build taiga-core
+WORKDIR /app/packages/taiga-core
+RUN npm run build
 
-# Build packages from root (workspaces)
-RUN npm run build --workspace=packages/taiga-core
-RUN npm run build --workspace=packages/taiga-rest-api
+# Build taiga-rest-api
+WORKDIR /app/packages/taiga-rest-api
+RUN npm run build
 
-# Production stage
-FROM base AS production
-ENV NODE_ENV=production
-USER node
+# Back to root
 WORKDIR /app
 
-# Copy package files
-COPY --chown=node:node package*.json ./
-COPY --chown=node:node packages/taiga-core/package.json ./packages/taiga-core/
-COPY --chown=node:node packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
-
-# Copy built artifacts and node_modules
-COPY --chown=node:node --from=build /app/node_modules ./node_modules
-COPY --chown=node:node --from=build /app/packages/taiga-core/dist ./packages/taiga-core/dist
-COPY --chown=node:node --from=build /app/packages/taiga-core/package.json ./packages/taiga-core/
-COPY --chown=node:node --from=build /app/packages/taiga-rest-api/dist ./packages/taiga-rest-api/dist
-COPY --chown=node:node --from=build /app/packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
