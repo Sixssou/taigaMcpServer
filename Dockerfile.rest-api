@@ -1,0 +1,56 @@
+# Dockerfile for Taiga REST API (Monorepo)
+# Multi-stage build for optimized production image
+
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN apk add --no-cache dumb-init
+
+# Install all dependencies (including workspaces)
+FROM base AS deps
+COPY package*.json ./
+COPY packages/taiga-core/package.json ./packages/taiga-core/
+COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
+RUN npm ci && npm cache clean --force
+
+# Build stage
+FROM base AS build
+COPY package*.json ./
+COPY packages/ ./packages/
+RUN npm ci
+
+# Build taiga-core first
+WORKDIR /app/packages/taiga-core
+RUN npm run build
+
+# Build taiga-rest-api
+WORKDIR /app/packages/taiga-rest-api
+RUN npm run build
+
+# Production stage
+FROM base AS production
+ENV NODE_ENV=production
+USER node
+WORKDIR /app
+
+# Copy package files
+COPY --chown=node:node package*.json ./
+COPY --chown=node:node packages/taiga-core/package.json ./packages/taiga-core/
+COPY --chown=node:node packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
+
+# Copy built artifacts and node_modules
+COPY --chown=node:node --from=build /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/packages/taiga-core/dist ./packages/taiga-core/dist
+COPY --chown=node:node --from=build /app/packages/taiga-core/package.json ./packages/taiga-core/
+COPY --chown=node:node --from=build /app/packages/taiga-rest-api/dist ./packages/taiga-rest-api/dist
+COPY --chown=node:node --from=build /app/packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Expose REST API port
+EXPOSE 3000
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "packages/taiga-rest-api/dist/server.js"]
