@@ -71,23 +71,23 @@ export const getSprintStatsTool = {
 
       const milestoneDetails = `Sprint Details: ${milestone.name}
 
-📊 Basic Information:
+Basic Information:
 - Status: ${status}
 - Start Date: ${startDate}
 - End Date: ${endDate}
 - Project: ${getSafeValue(milestone.project_extra_info?.name)}
 
-📈 Progress Statistics:
+Progress Statistics:
 - User Stories: ${stats.completed_userstories || 0}/${stats.total_userstories || 0} completed
 - Tasks: ${stats.completed_tasks || 0}/${stats.total_tasks || 0} completed
 - Points: ${stats.completed_points || 0}/${stats.total_points || 0} completed
 - Hours: ${stats.completed_hours || 0}/${stats.total_hours || 0} completed
 
-📋 User Stories Progress:
-${stats.completed_userstories || 0 > 0 ? `✅ Completed: ${stats.completed_userstories}` : '⚪ No completed stories'}
-${(stats.total_userstories || 0) - (stats.completed_userstories || 0) > 0 ? `🔄 Remaining: ${(stats.total_userstories || 0) - (stats.completed_userstories || 0)}` : ''}
+User Stories Progress:
+${stats.completed_userstories || 0 > 0 ? `Completed: ${stats.completed_userstories}` : 'No completed stories'}
+${(stats.total_userstories || 0) - (stats.completed_userstories || 0) > 0 ? `Remaining: ${(stats.total_userstories || 0) - (stats.completed_userstories || 0)}` : ''}
 
-🎯 Completion Rate: ${completionRate}%`;
+Completion Rate: ${completionRate}%`;
 
       return createSuccessResponse(milestoneDetails);
     } catch (error) {
@@ -163,13 +163,13 @@ export const getIssuesBySprintTool = {
 
       const sprintOverview = `Issues in Sprint: ${milestone.name}
 
-📊 Sprint Overview:
+Sprint Overview:
 - Sprint: ${milestone.name}
 - Status: ${getStatusLabel(milestone.closed)}
 - Duration: ${formatDate(milestone.estimated_start)} ~ ${formatDate(milestone.estimated_finish)}
 - Total Issues: ${issues.length}
 
-📋 Issues List:
+Issues List:
 ${formatSprintIssues(issues)}`;
 
       return createSuccessResponse(sprintOverview);

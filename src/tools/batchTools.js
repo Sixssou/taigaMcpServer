@@ -84,22 +84,22 @@ export const batchCreateIssuesTool = {
 
       // Format response
       let responseText = `${BATCH_OPERATIONS.SUCCESS_BATCH_CREATED_ISSUES}\n\n`;
-      
+
       if (results.length > 0) {
-        responseText += `✅ **成功創建 ${results.length} 個Issues:**\n`;
+        responseText += `**Successfully Created ${results.length} Issues:**\n`;
         results.forEach(result => {
           responseText += `${result.index}. ${result.subject} (#${result.ref})\n`;
         });
       }
-      
+
       if (errors.length > 0) {
-        responseText += `\n❌ **失敗 ${errors.length} 個Issues:**\n`;
+        responseText += `\n**Failed ${errors.length} Issues:**\n`;
         errors.forEach(error => {
           responseText += `${error.index}. ${error.subject} - ${error.error}\n`;
         });
       }
 
-      responseText += `\n📊 **總結:** ${results.length}/${issues.length} 成功`;
+      responseText += `\n**Summary:** ${results.length}/${issues.length} successful`;
       
       return createSuccessResponse(responseText);
     } catch (error) {
@@ -167,22 +167,22 @@ export const batchCreateUserStoriesTool = {
 
       // Format response
       let responseText = `${BATCH_OPERATIONS.SUCCESS_BATCH_CREATED_STORIES}\n\n`;
-      
+
       if (results.length > 0) {
-        responseText += `✅ **成功創建 ${results.length} 個User Stories:**\n`;
+        responseText += `**Successfully Created ${results.length} User Stories:**\n`;
         results.forEach(result => {
           responseText += `${result.index}. ${result.subject} (#${result.ref})\n`;
         });
       }
-      
+
       if (errors.length > 0) {
-        responseText += `\n❌ **失敗 ${errors.length} 個User Stories:**\n`;
+        responseText += `\n**Failed ${errors.length} User Stories:**\n`;
         errors.forEach(error => {
           responseText += `${error.index}. ${error.subject} - ${error.error}\n`;
         });
       }
 
-      responseText += `\n📊 **總結:** ${results.length}/${userStories.length} 成功`;
+      responseText += `\n**Summary:** ${results.length}/${userStories.length} successful`;
       
       return createSuccessResponse(responseText);
     } catch (error) {
@@ -259,23 +259,23 @@ export const batchCreateTasksTool = {
 
       // Format response
       let responseText = `${BATCH_OPERATIONS.SUCCESS_BATCH_CREATED_TASKS}\n\n`;
-      responseText += `📋 **User Story:** ${userStory.subject} (${userStoryRef})\n\n`;
-      
+      responseText += `**User Story:** ${userStory.subject} (${userStoryRef})\n\n`;
+
       if (results.length > 0) {
-        responseText += `✅ **成功創建 ${results.length} 個Tasks:**\n`;
+        responseText += `**Successfully Created ${results.length} Tasks:**\n`;
         results.forEach(result => {
           responseText += `${result.index}. ${result.subject} (#${result.ref})\n`;
         });
       }
-      
+
       if (errors.length > 0) {
-        responseText += `\n❌ **失敗 ${errors.length} 個Tasks:**\n`;
+        responseText += `\n**Failed ${errors.length} Tasks:**\n`;
         errors.forEach(error => {
           responseText += `${error.index}. ${error.subject} - ${error.error}\n`;
         });
       }
 
-      responseText += `\n📊 **總結:** ${results.length}/${tasks.length} 成功`;
+      responseText += `\n**Summary:** ${results.length}/${tasks.length} successful`;
       
       return createSuccessResponse(responseText);
     } catch (error) {

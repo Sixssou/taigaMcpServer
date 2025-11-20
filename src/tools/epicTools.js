@@ -44,14 +44,14 @@ export const createEpicTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.EPIC_CREATED}\n\n` +
-        `🏛️ **Epic創建成功**\n` +
+        `**Epic Created Successfully**\n` +
         `- Epic ID: ${result.id}\n` +
-        `- 標題: ${result.subject}\n` +
-        `- 專案: ${result.project_extra_info?.name || projectId}\n` +
-        `- 顏色: ${result.color}\n` +
-        `- 創建時間: ${new Date(result.created_date).toLocaleString()}\n` +
-        `${result.description ? `- 描述: ${result.description}\n` : ''}` +
-        `${result.tags && result.tags.length > 0 ? `- 標籤: ${result.tags.join(', ')}\n` : ''}`
+        `- Subject: ${result.subject}\n` +
+        `- Project: ${result.project_extra_info?.name || projectId}\n` +
+        `- Color: ${result.color}\n` +
+        `- Created: ${new Date(result.created_date).toLocaleString()}\n` +
+        `${result.description ? `- Description: ${result.description}\n` : ''}` +
+        `${result.tags && result.tags.length > 0 ? `- Tags: ${result.tags.join(', ')}\n` : ''}`
       );
     } catch (error) {
       console.error('Error creating epic:', error);
@@ -82,29 +82,29 @@ export const listEpicsTool = {
       
       if (epics.length === 0) {
         return createSuccessResponse(
-          `🏛️ **專案 #${projectId} Epic列表**\n\n` +
-          `暫無Epic`
+          `**Project #${projectId} Epic List**\n\n` +
+          `No epics found`
         );
       }
 
       const epicList = epics.map((epic, index) => {
         const createdDate = new Date(epic.created_date).toLocaleDateString();
         const storyCount = epic.user_stories_counts?.total || 0;
-        const statusInfo = epic.status_extra_info?.name || '未設定';
-        
+        const statusInfo = epic.status_extra_info?.name || 'Not set';
+
         return (
           `${index + 1}. **${epic.subject}** (ID: ${epic.id})\n` +
-          `   - 狀態: ${statusInfo}\n` +
-          `   - 用戶故事: ${storyCount} 個\n` +
-          `   - 創建日期: ${createdDate}\n` +
-          `   - 顏色: ${epic.color}\n` +
-          `${epic.description ? `   - 描述: ${epic.description.substring(0, 100)}${epic.description.length > 100 ? '...' : ''}\n` : ''}` +
-          `${epic.tags && epic.tags.length > 0 ? `   - 標籤: ${epic.tags.join(', ')}\n` : ''}`
+          `   - Status: ${statusInfo}\n` +
+          `   - User Stories: ${storyCount}\n` +
+          `   - Created: ${createdDate}\n` +
+          `   - Color: ${epic.color}\n` +
+          `${epic.description ? `   - Description: ${epic.description.substring(0, 100)}${epic.description.length > 100 ? '...' : ''}\n` : ''}` +
+          `${epic.tags && epic.tags.length > 0 ? `   - Tags: ${epic.tags.join(', ')}\n` : ''}`
         );
       }).join('\n');
 
       return createSuccessResponse(
-        `🏛️ **專案 #${projectId} Epic列表** (共 ${epics.length} 個)\n\n` +
+        `**Project #${projectId} Epic List** (Total: ${epics.length})\n\n` +
         epicList
       );
     } catch (error) {
@@ -143,26 +143,26 @@ export const getEpicTool = {
       const createdDate = new Date(epic.created_date).toLocaleString();
       const modifiedDate = new Date(epic.modified_date).toLocaleString();
       const storyCount = epic.user_stories_counts?.total || 0;
-      const statusInfo = epic.status_extra_info?.name || '未設定';
-      const ownerInfo = epic.owner_extra_info?.full_name || '未分配';
-      
+      const statusInfo = epic.status_extra_info?.name || 'Not set';
+      const ownerInfo = epic.owner_extra_info?.full_name || 'Unassigned';
+
       return createSuccessResponse(
-        `🏛️ **Epic詳細信息**\n\n` +
-        `**基本信息**\n` +
+        `**Epic Details**\n\n` +
+        `**Basic Information**\n` +
         `- ID: ${epic.id}\n` +
-        `- 標題: ${epic.subject}\n` +
-        `- 專案: ${epic.project_extra_info?.name || epic.project}\n` +
-        `- 狀態: ${statusInfo}\n` +
-        `- 負責人: ${ownerInfo}\n` +
-        `- 顏色: ${epic.color}\n\n` +
-        `**進度統計**\n` +
-        `- 關聯用戶故事: ${storyCount} 個\n` +
-        `- 創建時間: ${createdDate}\n` +
-        `- 最後修改: ${modifiedDate}\n\n` +
-        `${epic.description ? `**描述**\n${epic.description}\n\n` : ''}` +
-        `${epic.tags && epic.tags.length > 0 ? `**標籤**\n${epic.tags.join(', ')}\n\n` : ''}` +
-        `**項目鏈接**\n` +
-        `- Taiga URL: ${epic.permalink || '無'}`
+        `- Subject: ${epic.subject}\n` +
+        `- Project: ${epic.project_extra_info?.name || epic.project}\n` +
+        `- Status: ${statusInfo}\n` +
+        `- Owner: ${ownerInfo}\n` +
+        `- Color: ${epic.color}\n\n` +
+        `**Progress Statistics**\n` +
+        `- Related User Stories: ${storyCount}\n` +
+        `- Created: ${createdDate}\n` +
+        `- Last Modified: ${modifiedDate}\n\n` +
+        `${epic.description ? `**Description**\n${epic.description}\n\n` : ''}` +
+        `${epic.tags && epic.tags.length > 0 ? `**Tags**\n${epic.tags.join(', ')}\n\n` : ''}` +
+        `**Links**\n` +
+        `- Taiga URL: ${epic.permalink || 'None'}`
       );
     } catch (error) {
       console.error('Error getting epic:', error);
@@ -211,15 +211,15 @@ export const updateEpicTool = {
       if (status !== undefined) updateData.status = status;
 
       const result = await taigaService.updateEpic(epicIdNum, updateData);
-      
+
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.EPIC_UPDATED}\n\n` +
-        `🏛️ **Epic更新完成**\n` +
+        `**Epic Updated Successfully**\n` +
         `- Epic ID: ${result.id}\n` +
-        `- 標題: ${result.subject}\n` +
-        `- 狀態: ${result.status_extra_info?.name || '未設定'}\n` +
-        `- 最後修改: ${new Date(result.modified_date).toLocaleString()}\n` +
-        `${result.description ? `- 描述: ${result.description.substring(0, 150)}${result.description.length > 150 ? '...' : ''}\n` : ''}`
+        `- Subject: ${result.subject}\n` +
+        `- Status: ${result.status_extra_info?.name || 'Not set'}\n` +
+        `- Last Modified: ${new Date(result.modified_date).toLocaleString()}\n` +
+        `${result.description ? `- Description: ${result.description.substring(0, 150)}${result.description.length > 150 ? '...' : ''}\n` : ''}`
       );
     } catch (error) {
       console.error('Error updating epic:', error);
@@ -272,11 +272,11 @@ export const linkStoryToEpicTool = {
 
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.STORY_LINKED_TO_EPIC}\n\n` +
-        `🔗 **故事連結成功**\n` +
+        `**Story Linked Successfully**\n` +
         `- User Story: #${userStory.ref} "${result.subject}"\n` +
         `- Epic: #${epicId} "${result.epic?.subject || 'Epic'}"\n` +
-        `- 連結時間: ${new Date().toLocaleString()}\n` +
-        `- 專案: ${result.project_extra_info?.name || result.project}`
+        `- Linked: ${new Date().toLocaleString()}\n` +
+        `- Project: ${result.project_extra_info?.name || result.project}`
       );
     } catch (error) {
       console.error('Error linking story to epic:', error);
@@ -314,11 +314,11 @@ export const unlinkStoryFromEpicTool = {
 
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.STORY_UNLINKED_FROM_EPIC}\n\n` +
-        `🔓 **故事取消連結**\n` +
+        `**Story Unlinked Successfully**\n` +
         `- User Story: #${userStory.ref} "${result.subject}"\n` +
-        `- 已從Epic移除\n` +
-        `- 操作時間: ${new Date().toLocaleString()}\n` +
-        `- 專案: ${result.project_extra_info?.name || result.project}`
+        `- Removed from Epic\n` +
+        `- Unlinked: ${new Date().toLocaleString()}\n` +
+        `- Project: ${result.project_extra_info?.name || result.project}`
       );
     } catch (error) {
       console.error('Error unlinking story from epic:', error);

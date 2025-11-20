@@ -107,24 +107,24 @@ export const getUserStoryTool = {
 
       const userStoryDetails = `User Story Details: #${userStory.ref} - ${userStory.subject}
 
-📋 Basic Information:
+Basic Information:
 - Project: ${getSafeValue(userStory.project_extra_info?.name)}
 - Status: ${getSafeValue(userStory.status_extra_info?.name)}
 - Points: ${getSafeValue(userStory.total_points, 'Not set')}
 - Owner: ${getSafeValue(userStory.owner_extra_info?.full_name)}
 
-🎯 Assignment:
+Assignment:
 - Assigned to: ${getSafeValue(userStory.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
 - Milestone: ${getSafeValue(userStory.milestone_extra_info?.name, 'No milestone')}
 
-📅 Timeline:
+Timeline:
 - Created: ${formatDateTime(userStory.created_date)}
 - Modified: ${formatDateTime(userStory.modified_date)}
 
-📝 Description:
+Description:
 ${getSafeValue(userStory.description, 'No description provided')}
 
-🏷️ Tags: ${getSafeValue(userStory.tags?.join(', '), 'No tags')}`;
+Tags: ${getSafeValue(userStory.tags?.join(', '), 'No tags')}`;
 
       return createSuccessResponse(userStoryDetails);
     } catch (error) {

@@ -55,7 +55,7 @@ export const createTaskTool = {
         const userStory = userStories.find(us => us.ref.toString() === refNumber);
         if (userStory) {
           userStoryId = userStory.id;
-          console.log(`✅ Resolved User Story reference #${refNumber} to internal ID: ${userStoryId}`);
+          console.log(`Resolved User Story reference #${refNumber} to internal ID: ${userStoryId}`);
         } else {
           // Provide helpful error with available references
           const availableRefs = userStories.map(us => `#${us.ref}`).slice(0, 10).join(', ');
@@ -117,23 +117,23 @@ export const getTaskTool = {
 
       const taskDetails = `Task Details: #${task.ref} - ${task.subject}
 
-📋 Basic Information:
+Basic Information:
 - Project: ${getSafeValue(task.project_extra_info?.name)}
 - Status: ${getSafeValue(task.status_extra_info?.name)}
 - User Story: ${task.user_story_extra_info ? `#${task.user_story_extra_info.ref} - ${task.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}
 
-🎯 Assignment:
+Assignment:
 - Assigned to: ${getSafeValue(task.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
 
-📅 Timeline:
+Timeline:
 - Created: ${formatDateTime(task.created_date)}
 - Modified: ${formatDateTime(task.modified_date)}
 - Due Date: ${getSafeValue(task.due_date, STATUS_LABELS.NOT_SET)}
 
-📝 Description:
+Description:
 ${getSafeValue(task.description, STATUS_LABELS.NO_DESCRIPTION)}
 
-🏷️ Tags: ${getSafeValue(task.tags?.join(', '), STATUS_LABELS.NO_TAGS)}`;
+Tags: ${getSafeValue(task.tags?.join(', '), STATUS_LABELS.NO_TAGS)}`;
 
       return createSuccessResponse(taskDetails);
     } catch (error) {

@@ -283,7 +283,7 @@ export function createErrorResponse(message) {
     content: [
       {
         type: 'text',
-        text: `❌ Error: ${message}`,
+        text: `Error: ${message}`,
       },
     ],
     isError: true,
@@ -380,7 +380,7 @@ export function formatSprintList(sprints) {
  * @returns {string} - Formatted issue list for sprint
  */
 export function formatSprintIssues(issues) {
-  return issues.map(issue => `🔸 #${issue.ref}: ${issue.subject}
+  return issues.map(issue => `- #${issue.ref}: ${issue.subject}
    Status: ${getSafeValue(issue.status_extra_info?.name)}
    Priority: ${getSafeValue(issue.priority_extra_info?.name)}
    Assigned: ${getSafeValue(issue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}`).join('\n\n');
