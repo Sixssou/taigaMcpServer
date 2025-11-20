@@ -14,8 +14,18 @@ COPY package*.json ./
 COPY packages/taiga-core/package.json ./packages/taiga-core/
 COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
 
-# Install all dependencies
+# Install all dependencies at root level
 RUN npm install --legacy-peer-deps
+
+# Install dependencies in each workspace
+WORKDIR /app/packages/taiga-core
+RUN npm install --legacy-peer-deps
+
+WORKDIR /app/packages/taiga-rest-api
+RUN npm install --legacy-peer-deps
+
+# Back to root for copying source
+WORKDIR /app
 
 # Copy source code
 COPY packages/taiga-core/src ./packages/taiga-core/src
@@ -47,4 +57,6 @@ EXPOSE 3000
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "packages/taiga-rest-api/dist/server.js"]
+# Run from the rest-api directory so node_modules are found correctly
+WORKDIR /app/packages/taiga-rest-api
+CMD ["node", "dist/server.js"]
