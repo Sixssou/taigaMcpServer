@@ -17,6 +17,10 @@ COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
 # Install all dependencies at root level (npm workspaces will handle all packages)
 RUN npm install --legacy-peer-deps
 
+# Verify express is installed and list what's in node_modules (debug step)
+RUN ls -la /app/node_modules/ | grep -E "express|swagger" || echo "Express/Swagger not found in root node_modules"
+RUN test -d /app/packages/taiga-rest-api/node_modules && ls -la /app/packages/taiga-rest-api/node_modules/ | grep express || echo "No workspace node_modules or express not found there"
+
 # Copy source code
 COPY packages/taiga-core/src ./packages/taiga-core/src
 COPY packages/taiga-core/tsconfig.json ./packages/taiga-core/
@@ -30,6 +34,7 @@ RUN npm run build:api
 # Set production environment
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV NODE_PATH=/app/node_modules
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
