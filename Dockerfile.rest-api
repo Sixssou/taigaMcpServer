@@ -4,6 +4,8 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache dumb-init
+# Upgrade npm to support workspaces properly
+RUN npm install -g npm@latest
 
 # Install all dependencies (including workspaces)
 FROM base AS deps
@@ -16,15 +18,13 @@ RUN npm ci && npm cache clean --force
 FROM base AS build
 COPY package*.json ./
 COPY packages/ ./packages/
-RUN npm ci
 
-# Build taiga-core first
-WORKDIR /app/packages/taiga-core
-RUN npm run build
+# Use npm install instead of npm ci for workspace support
+RUN npm install
 
-# Build taiga-rest-api
-WORKDIR /app/packages/taiga-rest-api
-RUN npm run build
+# Build packages from root (workspaces)
+RUN npm run build --workspace=packages/taiga-core
+RUN npm run build --workspace=packages/taiga-rest-api
 
 # Production stage
 FROM base AS production
