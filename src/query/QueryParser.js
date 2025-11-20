@@ -1,11 +1,11 @@
 /**
- * 高級查詢語法解析器
+ * Advanced Query Syntax Parser
  * Advanced Query Parser for Taiga MCP Server
  */
 
-import { 
-  OPERATORS, 
-  LOGIC_OPERATORS, 
+import {
+  OPERATORS,
+  LOGIC_OPERATORS,
   SORT_DIRECTIONS,
   TIME_KEYWORDS,
   VALIDATION_RULES,
@@ -19,14 +19,14 @@ export class QueryParser {
   }
 
   /**
-   * 解析查詢字符串
-   * @param {string} queryString - 查詢字符串
-   * @param {string} type - 數據類型 (ISSUE, USER_STORY, TASK)
-   * @returns {Object} 解析後的查詢對象
+   * Parse query string
+   * @param {string} queryString - Query string
+   * @param {string} type - Data type (ISSUE, USER_STORY, TASK)
+   * @returns {Object} Parsed query object
    */
   parse(queryString, type = 'ISSUE') {
     if (!queryString || typeof queryString !== 'string') {
-      throw new Error('查詢字符串不能為空');
+      throw new Error('Query string cannot be empty');
     }
 
     this.tokens = this.tokenize(queryString);
@@ -46,21 +46,21 @@ export class QueryParser {
       this.parseExpression(query);
       return query;
     } catch (error) {
-      throw new Error(`查詢解析錯誤: ${error.message}`);
+      throw new Error(`Query parsing error: ${error.message}`);
     }
   }
 
   /**
-   * 分詞器 - 將查詢字符串分解為標記
+   * Tokenizer - Break query string into tokens
    */
   tokenize(queryString) {
     const tokens = [];
     const regex = /([A-Za-z_][A-Za-z0-9_]*):([><=!~]*)([^:\s()]+|\([^)]+\)|"[^"]*")|(\bAND\b|\bOR\b|\bNOT\b|\bORDER\s+BY\b|\bLIMIT\b|\bGROUP\s+BY\b)|([()])|(\S+)/gi;
-    
+
     let match;
     while ((match = regex.exec(queryString)) !== null) {
       if (match[1] && match[3]) {
-        // 字段查詢: field:operator:value
+        // Field query: field:operator:value
         tokens.push({
           type: 'FIELD_QUERY',
           field: match[1].toLowerCase(),
@@ -68,7 +68,7 @@ export class QueryParser {
           value: this.parseValue(match[3])
         });
       } else if (match[4]) {
-        // 邏輯操作符或關鍵字
+        // Logical operators or keywords
         const keyword = match[4].toUpperCase().replace(/\s+/g, '_');
         if (keyword === 'ORDER_BY') {
           tokens.push({ type: 'ORDER_BY' });
@@ -80,10 +80,10 @@ export class QueryParser {
           tokens.push({ type: 'LOGIC', operator: keyword });
         }
       } else if (match[5]) {
-        // 括號
+        // Parentheses
         tokens.push({ type: 'PAREN', value: match[5] });
       } else if (match[6]) {
-        // 其他標記
+        // Other tokens
         tokens.push({ type: 'VALUE', value: match[6] });
       }
     }
@@ -92,44 +92,44 @@ export class QueryParser {
   }
 
   /**
-   * 解析值並處理特殊格式
+   * Parse value and handle special formats
    */
   parseValue(valueString) {
-    // 移除引號
+    // Remove quotes
     if ((valueString.startsWith('"') && valueString.endsWith('"')) ||
         (valueString.startsWith("'") && valueString.endsWith("'"))) {
       return valueString.slice(1, -1);
     }
 
-    // 處理括號內的數組 [item1,item2,item3]
+    // Handle arrays in parentheses [item1,item2,item3]
     if (valueString.startsWith('(') && valueString.endsWith(')')) {
       const arrayContent = valueString.slice(1, -1);
       return arrayContent.split(',').map(item => item.trim());
     }
 
-    // 處理範圍查詢 3..8
+    // Handle range query 3..8
     if (valueString.includes('..')) {
       const [start, end] = valueString.split('..');
       return { range: [this.parseNumericValue(start), this.parseNumericValue(end)] };
     }
 
-    // 處理數值
+    // Handle numeric values
     if (!isNaN(valueString)) {
       return this.parseNumericValue(valueString);
     }
 
-    // 處理時間關鍵字
+    // Handle time keywords
     if (TIME_KEYWORDS[valueString]) {
       return TIME_KEYWORDS[valueString]();
     }
 
-    // 處理相對時間 <7d, >30d
+    // Handle relative time <7d, >30d
     const timeMatch = valueString.match(/^([<>]=?)(\d+)([dwmy])$/);
     if (timeMatch) {
       const operator = timeMatch[1];
       const value = parseInt(timeMatch[2]);
       const unit = timeMatch[3];
-      
+
       let milliseconds;
       switch (unit) {
         case 'd': milliseconds = value * 24 * 60 * 60 * 1000; break;
@@ -137,7 +137,7 @@ export class QueryParser {
         case 'm': milliseconds = value * 30 * 24 * 60 * 60 * 1000; break;
         case 'y': milliseconds = value * 365 * 24 * 60 * 60 * 1000; break;
       }
-      
+
       const targetDate = new Date(Date.now() - milliseconds);
       return { relativeTime: operator, date: targetDate };
     }
@@ -146,7 +146,7 @@ export class QueryParser {
   }
 
   /**
-   * 解析數值
+   * Parse numeric value
    */
   parseNumericValue(value) {
     const num = Number(value);
@@ -154,7 +154,7 @@ export class QueryParser {
   }
 
   /**
-   * 解析表達式
+   * Parse expression
    */
   parseExpression(query) {
     while (this.position < this.tokens.length) {
@@ -187,27 +187,27 @@ export class QueryParser {
   }
 
   /**
-   * 解析字段查詢
+   * Parse field query
    */
   parseFieldQuery(query, token) {
     const { field, operator, value } = token;
 
-    // 驗證字段
+    // Validate field
     if (!VALIDATION_RULES.isValidField(field, this.dataType)) {
-      throw new Error(`無效的字段: ${field}`);
+      throw new Error(`Invalid field: ${field}`);
     }
 
-    // 標準化操作符
+    // Normalize operator
     let normalizedOperator = this.normalizeOperator(operator);
-    
-    // 驗證操作符
+
+    // Validate operator
     if (!VALIDATION_RULES.isValidOperator(normalizedOperator)) {
-      throw new Error(`無效的操作符: ${operator}`);
+      throw new Error(`Invalid operator: ${operator}`);
     }
 
-    // 驗證值
+    // Validate value
     if (!VALIDATION_RULES.isValidValue(field, value, this.dataType)) {
-      console.warn(`字段 ${field} 的值可能無效: ${value}`);
+      console.warn(`Value for field ${field} may be invalid: ${value}`);
     }
 
     query.filters.push({
@@ -221,7 +221,7 @@ export class QueryParser {
   }
 
   /**
-   * 標準化操作符
+   * Normalize operator
    */
   normalizeOperator(operator) {
     switch (operator) {
@@ -246,7 +246,7 @@ export class QueryParser {
   }
 
   /**
-   * 解析邏輯操作符
+   * Parse logical operator
    */
   parseLogicOperator(query, token) {
     if (token.operator === 'AND' || token.operator === 'OR') {
@@ -256,20 +256,20 @@ export class QueryParser {
   }
 
   /**
-   * 解析排序子句
+   * Parse ORDER BY clause
    */
   parseOrderBy(query) {
-    this.position++; // 跳過 ORDER BY
-    
+    this.position++; // Skip ORDER BY
+
     if (this.position < this.tokens.length) {
       const fieldToken = this.tokens[this.position];
       const field = fieldToken.value || fieldToken.field;
-      
+
       let direction = SORT_DIRECTIONS.ASC;
       if (this.position + 1 < this.tokens.length) {
         const directionToken = this.tokens[this.position + 1];
-        if (directionToken.value && 
-            (directionToken.value.toUpperCase() === 'DESC' || 
+        if (directionToken.value &&
+            (directionToken.value.toUpperCase() === 'DESC' ||
              directionToken.value.toUpperCase() === 'ASC')) {
           direction = directionToken.value.toUpperCase();
           this.position++;
@@ -282,29 +282,29 @@ export class QueryParser {
   }
 
   /**
-   * 解析限制子句
+   * Parse LIMIT clause
    */
   parseLimit(query) {
-    this.position++; // 跳過 LIMIT
-    
+    this.position++; // Skip LIMIT
+
     if (this.position < this.tokens.length) {
       const limitToken = this.tokens[this.position];
       const limit = parseInt(limitToken.value);
-      
+
       if (!isNaN(limit) && limit > 0) {
         query.limit = limit;
       }
-      
+
       this.position++;
     }
   }
 
   /**
-   * 解析分組子句
+   * Parse GROUP BY clause
    */
   parseGroupBy(query) {
-    this.position++; // 跳過 GROUP BY
-    
+    this.position++; // Skip GROUP BY
+
     if (this.position < this.tokens.length) {
       const fieldToken = this.tokens[this.position];
       query.groupBy = fieldToken.value || fieldToken.field;
@@ -313,26 +313,26 @@ export class QueryParser {
   }
 
   /**
-   * 解析括號（用於邏輯分組）
+   * Parse parentheses (for logical grouping)
    */
   parseParentheses(query, token) {
-    // 簡化處理，暫時跳過括號
-    // 完整實現需要處理嵌套邏輯表達式
+    // Simplified handling, temporarily skip parentheses
+    // Full implementation needs to handle nested logical expressions
     this.position++;
   }
 
   /**
-   * 驗證查詢對象
+   * Validate query object
    */
   validateQuery(query) {
     if (!query.filters || query.filters.length === 0) {
-      throw new Error('查詢必須至少包含一個過濾條件');
+      throw new Error('Query must contain at least one filter condition');
     }
 
-    // 驗證每個過濾條件
+    // Validate each filter condition
     for (const filter of query.filters) {
       if (!filter.field || !filter.operator) {
-        throw new Error('過濾條件必須包含字段和操作符');
+        throw new Error('Filter condition must contain field and operator');
       }
     }
 
@@ -340,7 +340,7 @@ export class QueryParser {
   }
 
   /**
-   * 獲取查詢統計信息
+   * Get query statistics
    */
   getQueryStats(query) {
     return {
@@ -353,15 +353,15 @@ export class QueryParser {
   }
 
   /**
-   * 計算查詢複雜度
+   * Calculate query complexity
    */
   calculateComplexity(query) {
     let complexity = query.filters.length;
-    
+
     if (query.orderBy) complexity += 1;
     if (query.limit) complexity += 0.5;
     if (query.groupBy) complexity += 2;
-    
+
     return Math.round(complexity * 10) / 10;
   }
 }

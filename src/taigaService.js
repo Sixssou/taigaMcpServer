@@ -287,7 +287,7 @@ export class TaigaService {
       const client = await createAuthenticatedClient();
 
       // Log the payload for debugging
-      console.log('📤 Creating task with payload:', JSON.stringify({
+      console.log('Creating task with payload:', JSON.stringify({
         project: taskData.project,
         user_story: taskData.user_story,
         subject: taskData.subject,
@@ -299,7 +299,7 @@ export class TaigaService {
       const response = await client.post(API_ENDPOINTS.TASKS, taskData);
       return response.data;
     } catch (error) {
-      console.error('❌ Failed to create task:', error.message);
+      console.error('Failed to create task:', error.message);
 
       // Extract detailed error information from API response
       let detailedError = ERROR_MESSAGES.FAILED_TO_CREATE_TASK;
@@ -308,8 +308,8 @@ export class TaigaService {
         const status = error.response.status;
         const data = error.response.data;
 
-        console.error('📋 API Response Status:', status);
-        console.error('📋 API Response Data:', JSON.stringify(data, null, 2));
+        console.error('API Response Status:', status);
+        console.error('API Response Data:', JSON.stringify(data, null, 2));
 
         // Build detailed error message
         const errorDetails = [];
@@ -713,12 +713,12 @@ export class TaigaService {
   async addComment(itemType, itemId, commentData) {
     try {
       const client = await createAuthenticatedClient();
-      
-      // 首先获取当前项目版本（必需用于版本控制）
+
+      // First get current item version (required for version control)
       const currentVersion = await this.getItemVersion(itemType, itemId);
-      
-      // Taiga使用歷史API來處理評論
-      // 通過更新項目並添加評論來創建評論記錄
+
+      // Taiga uses History API to handle comments
+      // Create comment record by updating item and adding comment
       const endpoint = this.getItemEndpoint(itemType);
       
       const updateData = {
@@ -729,7 +729,7 @@ export class TaigaService {
       const response = await client.patch(`${endpoint}/${itemId}`, updateData);
       return response.data;
     } catch (error) {
-      // 提供更具体的错误信息
+      // Provide more specific error information
       if (error.response?.status === 400) {
         const errorMsg = error.response?.data?.version ? 
           'Version parameter is invalid. The item may have been modified by another user.' :
@@ -851,9 +851,9 @@ export class TaigaService {
       const response = await client.get(`${endpoint}/${itemId}`);
       
       const version = response.data.version;
-      
+
       if (typeof version !== 'number') {
-        return 1; // 默認版本
+        return 1; // Default version
       }
       
       return version;
@@ -913,23 +913,23 @@ export class TaigaService {
       // Create FormData instance
       const formData = new FormData();
       formData.append('object_id', itemId.toString());
-      
-      // Append file buffer - 使用更簡單的格式
-      // 某些版本的 form-data 可能對第三個參數格式敏感
+
+      // Append file buffer - use simpler format
+      // Some versions of form-data may be sensitive to the third parameter format
       formData.append('attached_file', fileBuffer, fileName);
       
       if (description) {
         formData.append('description', description);
       }
-      
-      // 嘗試添加項目ID（可能是必需的）
+
+      // Try to add project ID (may be required)
       try {
         const itemData = await this.getItemData(itemType, itemId);
         if (itemData && itemData.project) {
           formData.append('project', itemData.project.toString());
         }
       } catch (projectError) {
-        // 靜默忽略項目ID獲取失敗，繼續上傳
+        // Silently ignore project ID fetch failure, continue with upload
       }
 
       // Use axios with FormData (client already has auth headers)
@@ -1255,7 +1255,7 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
 
-      console.log(`📋 Linking user story #${userStoryId} to epic #${epicId}...`);
+      console.log(`Linking user story #${userStoryId} to epic #${epicId}...`);
 
       // Use the dedicated endpoint for creating epic-user story relationships
       // POST /epics/{epicId}/related_userstories
@@ -1265,15 +1265,15 @@ export class TaigaService {
         user_story: userStoryId
       };
 
-      console.log(`📤 Sending POST request to ${endpoint}`);
-      console.log(`📤 Request data:`, JSON.stringify(requestData, null, 2));
+      console.log(`Sending POST request to ${endpoint}`);
+      console.log(`Request data:`, JSON.stringify(requestData, null, 2));
 
       const response = await client.post(endpoint, requestData);
 
-      console.log(`📥 Response status:`, response.status);
-      console.log(`📥 Related user story created:`, response.data.id);
-      console.log(`📥 Epic ID:`, response.data.epic);
-      console.log(`📥 User Story ID:`, response.data.user_story);
+      console.log(`Response status:`, response.status);
+      console.log(`Related user story created:`, response.data.id);
+      console.log(`Epic ID:`, response.data.epic);
+      console.log(`User Story ID:`, response.data.user_story);
 
       // Verify that the relationship was created
       if (response.data.epic !== epicId || response.data.user_story !== userStoryId) {
@@ -1282,12 +1282,12 @@ export class TaigaService {
 
       // Fetch the updated user story to return complete information
       const updatedStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      console.log(`📋 Updated user story epic field:`, updatedStory.data.epic);
+      console.log(`Updated user story epic field:`, updatedStory.data.epic);
 
       return updatedStory.data;
     } catch (error) {
-      console.error('❌ Failed to link story to epic:', error.message);
-      console.error('❌ Error details:', error.response?.data || error);
+      console.error('Failed to link story to epic:', error.message);
+      console.error('Error details:', error.response?.data || error);
 
       // Provide more specific error messages
       if (error.response?.status === 400) {
@@ -1312,14 +1312,14 @@ export class TaigaService {
     try {
       const client = await createAuthenticatedClient();
 
-      console.log(`📋 Unlinking user story #${userStoryId} from epic...`);
+      console.log(`Unlinking user story #${userStoryId} from epic...`);
 
       // First, get the current user story to find the related user story link ID
       const currentStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      console.log(`📋 Current story epic value:`, currentStory.data.epic);
+      console.log(`Current story epic value:`, currentStory.data.epic);
 
       if (!currentStory.data.epic) {
-        console.log(`⚠️  User story is not linked to any epic`);
+        console.log(`User story is not linked to any epic`);
         return currentStory.data;
       }
 
@@ -1336,24 +1336,24 @@ export class TaigaService {
         throw new Error(`Related user story relationship not found for story #${userStoryId} in epic #${epicId}`);
       }
 
-      console.log(`📋 Found relationship ID: ${relationship.id}`);
+      console.log(`Found relationship ID: ${relationship.id}`);
 
       // Delete the relationship using DELETE /epics/{epicId}/related_userstories/{relationshipId}
       const deleteEndpoint = `${relatedStoriesEndpoint}/${relationship.id}`;
-      console.log(`📤 Sending DELETE request to ${deleteEndpoint}`);
+      console.log(`Sending DELETE request to ${deleteEndpoint}`);
 
       await client.delete(deleteEndpoint);
 
-      console.log(`✅ User story unlinked successfully`);
+      console.log(`User story unlinked successfully`);
 
       // Fetch and return the updated user story
       const updatedStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
-      console.log(`📋 Updated user story epic field:`, updatedStory.data.epic);
+      console.log(`Updated user story epic field:`, updatedStory.data.epic);
 
       return updatedStory.data;
     } catch (error) {
-      console.error('❌ Failed to unlink story from epic:', error.message);
-      console.error('❌ Error details:', error.response?.data || error);
+      console.error('Failed to unlink story from epic:', error.message);
+      console.error('Error details:', error.response?.data || error);
 
       // Provide more specific error messages
       if (error.response?.status === 404) {

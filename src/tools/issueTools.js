@@ -102,25 +102,25 @@ export const getIssueTool = {
 
       const issueDetails = `Issue Details: #${issue.ref} - ${issue.subject}
 
-📋 Basic Information:
+Basic Information:
 - Project: ${getSafeValue(issue.project_extra_info?.name)}
 - Status: ${getSafeValue(issue.status_extra_info?.name)}
 - Priority: ${getSafeValue(issue.priority_extra_info?.name)}
 - Severity: ${getSafeValue(issue.severity_extra_info?.name)}
 - Type: ${getSafeValue(issue.type_extra_info?.name)}
 
-🎯 Assignment:
+Assignment:
 - Assigned to: ${getSafeValue(issue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
 - Sprint: ${getSafeValue(issue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}
 
-📅 Timeline:
+Timeline:
 - Created: ${formatDateTime(issue.created_date)}
 - Modified: ${formatDateTime(issue.modified_date)}
 
-📝 Description:
+Description:
 ${getSafeValue(issue.description, STATUS_LABELS.NO_DESCRIPTION)}
 
-🏷️ Tags: ${getSafeValue(issue.tags?.join(', '), STATUS_LABELS.NO_TAGS)}`;
+Tags: ${getSafeValue(issue.tags?.join(', '), STATUS_LABELS.NO_TAGS)}`;
 
       return createSuccessResponse(issueDetails);
     } catch (error) {

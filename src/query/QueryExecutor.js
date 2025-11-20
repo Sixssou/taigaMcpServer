@@ -1,5 +1,5 @@
 /**
- * 查詢執行器
+ * Query Executor
  * Query Executor for Advanced Search
  */
 
@@ -11,50 +11,50 @@ export class QueryExecutor {
   }
 
   /**
-   * 執行查詢
-   * @param {Object} query - 解析後的查詢對象
-   * @param {string} projectId - 項目ID
-   * @returns {Array} 過濾後的結果
+   * Execute query
+   * @param {Object} query - Parsed query object
+   * @param {string} projectId - Project ID
+   * @returns {Array} Filtered results
    */
   async execute(query, projectId) {
     try {
-      // 根據查詢類型獲取數據
+      // Fetch data based on query type
       let data = await this.fetchData(query.type, projectId);
-      
-      // 應用過濾器
+
+      // Apply filters
       if (query.filters && query.filters.length > 0) {
         data = this.applyFilters(data, query.filters, query.logic);
       }
-      
-      // 應用排序
+
+      // Apply sorting
       if (query.orderBy) {
         data = this.applySorting(data, query.orderBy);
       }
-      
-      // 應用分組
+
+      // Apply grouping
       if (query.groupBy) {
         data = this.applyGrouping(data, query.groupBy);
       }
-      
-      // 應用限制
+
+      // Apply limit
       if (query.limit) {
         data = data.slice(0, query.limit);
       }
-      
+
       return {
         results: data,
         total: data.length,
         query: query,
         executionTime: Date.now()
       };
-      
+
     } catch (error) {
-      throw new Error(`查詢執行失敗: ${error.message}`);
+      throw new Error(`Query execution failed: ${error.message}`);
     }
   }
 
   /**
-   * 根據類型獲取數據
+   * Fetch data based on type
    */
   async fetchData(type, projectId) {
     switch (type) {
@@ -63,34 +63,34 @@ export class QueryExecutor {
       case 'USER_STORY':
         return await this.taigaService.listUserStories(projectId);
       case 'TASK':
-        // 獲取所有任務（需要遍歷用戶故事）
+        // Fetch all tasks (need to iterate through user stories)
         return await this.fetchAllTasks(projectId);
       default:
-        throw new Error(`不支持的數據類型: ${type}`);
+        throw new Error(`Unsupported data type: ${type}`);
     }
   }
 
   /**
-   * 獲取所有任務
+   * Fetch all tasks
    */
   async fetchAllTasks(projectId) {
     const userStories = await this.taigaService.listUserStories(projectId);
     const allTasks = [];
-    
+
     for (const story of userStories) {
       try {
         const tasks = await this.taigaService.listTasks(story.id);
         allTasks.push(...tasks);
       } catch (error) {
-        console.warn(`無法獲取用戶故事 ${story.id} 的任務:`, error.message);
+        console.warn(`Unable to fetch tasks for user story ${story.id}:`, error.message);
       }
     }
-    
+
     return allTasks;
   }
 
   /**
-   * 應用過濾器
+   * Apply filters
    */
   applyFilters(data, filters, logic = 'AND') {
     return data.filter(item => {
@@ -103,7 +103,7 @@ export class QueryExecutor {
   }
 
   /**
-   * 評估單個過濾條件
+   * Evaluate single filter condition
    */
   evaluateFilter(item, filter) {
     const { field, operator, value } = filter;
@@ -112,63 +112,63 @@ export class QueryExecutor {
     switch (operator) {
       case OPERATORS.EQUAL:
         return this.compareEqual(itemValue, value);
-      
+
       case OPERATORS.NOT_EQUAL:
         return !this.compareEqual(itemValue, value);
-      
+
       case OPERATORS.GREATER_THAN:
         return this.compareGreater(itemValue, value, false);
-      
+
       case OPERATORS.GREATER_EQUAL:
         return this.compareGreater(itemValue, value, true);
-      
+
       case OPERATORS.LESS_THAN:
         return this.compareLess(itemValue, value, false);
-      
+
       case OPERATORS.LESS_EQUAL:
         return this.compareLess(itemValue, value, true);
-      
+
       case OPERATORS.CONTAINS:
         return this.compareContains(itemValue, value);
-      
+
       case OPERATORS.STARTS_WITH:
         return this.compareStartsWith(itemValue, value);
-      
+
       case OPERATORS.ENDS_WITH:
         return this.compareEndsWith(itemValue, value);
-      
+
       case OPERATORS.FUZZY:
         return this.compareFuzzy(itemValue, value);
-      
+
       case OPERATORS.IN:
         return this.compareIn(itemValue, value);
-      
+
       case OPERATORS.NOT_IN:
         return !this.compareIn(itemValue, value);
-      
+
       case OPERATORS.EXISTS:
         return itemValue !== null && itemValue !== undefined;
-      
+
       case OPERATORS.NULL:
         return itemValue === null || itemValue === undefined;
-      
+
       case OPERATORS.EMPTY:
         return this.isEmpty(itemValue);
-      
+
       default:
-        console.warn(`不支持的操作符: ${operator}`);
+        console.warn(`Unsupported operator: ${operator}`);
         return true;
     }
   }
 
   /**
-   * 獲取字段值
+   * Get field value
    */
   getFieldValue(item, field) {
-    // 處理嵌套字段訪問
+    // Handle nested field access
     const fieldPath = field.split('.');
     let value = item;
-    
+
     for (const path of fieldPath) {
       if (value && typeof value === 'object') {
         value = value[path];
@@ -176,137 +176,137 @@ export class QueryExecutor {
         return undefined;
       }
     }
-    
+
     return value;
   }
 
   /**
-   * 相等比較
+   * Equality comparison
    */
   compareEqual(itemValue, queryValue) {
     if (itemValue === null || itemValue === undefined) {
       return queryValue === null || queryValue === 'null';
     }
-    
-    // 字符串比較（不區分大小寫）
+
+    // String comparison (case-insensitive)
     if (typeof itemValue === 'string' && typeof queryValue === 'string') {
       return itemValue.toLowerCase() === queryValue.toLowerCase();
     }
-    
+
     return itemValue === queryValue;
   }
 
   /**
-   * 大於比較
+   * Greater than comparison
    */
   compareGreater(itemValue, queryValue, orEqual = false) {
     const numericItem = this.toNumeric(itemValue);
     const numericQuery = this.toNumeric(queryValue);
-    
+
     if (numericItem !== null && numericQuery !== null) {
       return orEqual ? numericItem >= numericQuery : numericItem > numericQuery;
     }
-    
-    // 日期比較
+
+    // Date comparison
     const dateItem = this.toDate(itemValue);
     const dateQuery = this.toDate(queryValue);
-    
+
     if (dateItem && dateQuery) {
       return orEqual ? dateItem >= dateQuery : dateItem > dateQuery;
     }
-    
-    // 字符串比較
+
+    // String comparison
     return orEqual ? itemValue >= queryValue : itemValue > queryValue;
   }
 
   /**
-   * 小於比較
+   * Less than comparison
    */
   compareLess(itemValue, queryValue, orEqual = false) {
     const numericItem = this.toNumeric(itemValue);
     const numericQuery = this.toNumeric(queryValue);
-    
+
     if (numericItem !== null && numericQuery !== null) {
       return orEqual ? numericItem <= numericQuery : numericItem < numericQuery;
     }
-    
-    // 日期比較
+
+    // Date comparison
     const dateItem = this.toDate(itemValue);
     const dateQuery = this.toDate(queryValue);
-    
+
     if (dateItem && dateQuery) {
       return orEqual ? dateItem <= dateQuery : dateItem < dateQuery;
     }
-    
-    // 字符串比較
+
+    // String comparison
     return orEqual ? itemValue <= queryValue : itemValue < queryValue;
   }
 
   /**
-   * 包含比較
+   * Contains comparison
    */
   compareContains(itemValue, queryValue) {
     if (!itemValue || !queryValue) return false;
-    
+
     const itemStr = String(itemValue).toLowerCase();
     const queryStr = String(queryValue).toLowerCase();
-    
+
     return itemStr.includes(queryStr);
   }
 
   /**
-   * 開頭匹配
+   * Starts with match
    */
   compareStartsWith(itemValue, queryValue) {
     if (!itemValue || !queryValue) return false;
-    
+
     const itemStr = String(itemValue).toLowerCase();
     const queryStr = String(queryValue).toLowerCase();
-    
+
     return itemStr.startsWith(queryStr);
   }
 
   /**
-   * 結尾匹配
+   * Ends with match
    */
   compareEndsWith(itemValue, queryValue) {
     if (!itemValue || !queryValue) return false;
-    
+
     const itemStr = String(itemValue).toLowerCase();
     const queryStr = String(queryValue).toLowerCase();
-    
+
     return itemStr.endsWith(queryStr);
   }
 
   /**
-   * 模糊匹配
+   * Fuzzy match
    */
   compareFuzzy(itemValue, queryValue) {
     if (!itemValue || !queryValue) return false;
-    
+
     const itemStr = String(itemValue).toLowerCase();
     const queryStr = String(queryValue).toLowerCase();
-    
-    // 簡單的模糊匹配實現
+
+    // Simple fuzzy match implementation
     const words = queryStr.split(/\s+/);
     return words.every(word => itemStr.includes(word));
   }
 
   /**
-   * 包含於數組
+   * Contained in array
    */
   compareIn(itemValue, queryValue) {
     if (!Array.isArray(queryValue)) return false;
-    
+
     if (Array.isArray(itemValue)) {
       return itemValue.some(item => queryValue.includes(item));
     }
-    
+
     return queryValue.includes(itemValue);
   }
 
   /**
-   * 檢查是否為空
+   * Check if empty
    */
   isEmpty(value) {
     if (value === null || value === undefined) return true;
@@ -317,7 +317,7 @@ export class QueryExecutor {
   }
 
   /**
-   * 轉換為數值
+   * Convert to numeric
    */
   toNumeric(value) {
     if (typeof value === 'number') return value;
@@ -329,7 +329,7 @@ export class QueryExecutor {
   }
 
   /**
-   * 轉換為日期
+   * Convert to date
    */
   toDate(value) {
     if (value instanceof Date) return value;
@@ -344,18 +344,18 @@ export class QueryExecutor {
   }
 
   /**
-   * 應用排序
+   * Apply sorting
    */
   applySorting(data, orderBy) {
     const { field, direction } = orderBy;
-    
+
     return data.sort((a, b) => {
       const valueA = this.getFieldValue(a, field);
       const valueB = this.getFieldValue(b, field);
-      
+
       let comparison = 0;
-      
-      // 處理 null/undefined 值
+
+      // Handle null/undefined values
       if (valueA === null || valueA === undefined) {
         comparison = valueB === null || valueB === undefined ? 0 : -1;
       } else if (valueB === null || valueB === undefined) {
@@ -367,29 +367,29 @@ export class QueryExecutor {
       } else {
         comparison = String(valueA).localeCompare(String(valueB));
       }
-      
+
       return direction === 'DESC' ? -comparison : comparison;
     });
   }
 
   /**
-   * 應用分組
+   * Apply grouping
    */
   applyGrouping(data, groupByField) {
     const grouped = {};
-    
+
     data.forEach(item => {
       const groupValue = this.getFieldValue(item, groupByField) || 'undefined';
       const groupKey = String(groupValue);
-      
+
       if (!grouped[groupKey]) {
         grouped[groupKey] = [];
       }
-      
+
       grouped[groupKey].push(item);
     });
-    
-    // 轉換為數組格式，包含統計信息
+
+    // Convert to array format with statistics
     return Object.entries(grouped).map(([key, items]) => ({
       groupValue: key,
       count: items.length,
@@ -398,7 +398,7 @@ export class QueryExecutor {
   }
 
   /**
-   * 獲取查詢執行統計
+   * Get query execution statistics
    */
   getExecutionStats(startTime, endTime, originalCount, filteredCount) {
     return {

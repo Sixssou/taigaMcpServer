@@ -94,11 +94,11 @@ export const BATCH_OPERATIONS = {
   MAX_BATCH_SIZE: 20,
   ERROR_EMPTY_BATCH: 'Batch array cannot be empty',
   ERROR_BATCH_TOO_LARGE: 'Batch size exceeds maximum limit',
-  SUCCESS_BATCH_CREATED_ISSUES: '🚀 批次Issues創建完成',
-  SUCCESS_BATCH_CREATED_STORIES: '🚀 批次User Stories創建完成', 
-  SUCCESS_BATCH_CREATED_TASKS: '🚀 批次Tasks創建完成',
-  BATCH_OPERATION_START: '開始批次操作...',
-  BATCH_OPERATION_COMPLETE: '批次操作完成！',
+  SUCCESS_BATCH_CREATED_ISSUES: 'Batch Issues creation completed',
+  SUCCESS_BATCH_CREATED_STORIES: 'Batch User Stories creation completed',
+  SUCCESS_BATCH_CREATED_TASKS: 'Batch Tasks creation completed',
+  BATCH_OPERATION_START: 'Starting batch operation...',
+  BATCH_OPERATION_COMPLETE: 'Batch operation completed!',
 };
 
 export const ADVANCED_QUERY = {
@@ -106,8 +106,8 @@ export const ADVANCED_QUERY = {
   DEFAULT_LIMIT: 50,
   MAX_COMPLEXITY: 10,
   TIMEOUT_MS: 30000,
-  
-  // 查詢錯誤信息
+
+  // Query error messages
   ERROR_EMPTY_QUERY: 'Query string cannot be empty',
   ERROR_INVALID_SYNTAX: 'Invalid query syntax',
   ERROR_UNSUPPORTED_FIELD: 'Unsupported field for this data type',
@@ -116,21 +116,21 @@ export const ADVANCED_QUERY = {
   ERROR_QUERY_TOO_COMPLEX: 'Query complexity exceeds maximum limit',
   ERROR_EXECUTION_TIMEOUT: 'Query execution timeout',
   ERROR_NO_RESULTS: 'No results found for the given query',
-  
-  // 查詢成功信息
-  SUCCESS_QUERY_EXECUTED: '🔍 查詢執行成功',
-  SUCCESS_QUERY_VALIDATED: '✅ 查詢語法驗證通過',
-  
-  // 查詢提示信息
+
+  // Query success messages
+  SUCCESS_QUERY_EXECUTED: 'Query executed successfully',
+  SUCCESS_QUERY_VALIDATED: 'Query syntax validation passed',
+
+  // Query hint messages
   HINT_USE_QUOTES: 'Use quotes for values containing spaces',
   HINT_CHECK_SPELLING: 'Check field names and operator spelling',
   HINT_USE_LIMIT: 'Consider using LIMIT to reduce result size',
   HINT_USE_HELP: 'Use queryHelp for syntax assistance',
-  
-  // 支持的數據類型
+
+  // Supported data types
   SUPPORTED_TYPES: ['issues', 'user_stories', 'tasks'],
-  
-  // 查詢複雜度權重
+
+  // Query complexity weights
   COMPLEXITY_WEIGHTS: {
     FILTER: 1,
     LOGIC_OP: 0.5,

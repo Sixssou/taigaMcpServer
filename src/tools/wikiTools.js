@@ -47,13 +47,13 @@ export const createWikiPageTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.WIKI_PAGE_CREATED}\n\n` +
-        `📖 **Wiki頁面創建成功**\n` +
+        `**Wiki Page Created Successfully**\n` +
         `- Wiki ID: ${result.id}\n` +
         `- Slug: ${result.slug}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
-        `- 創建時間: ${new Date(result.created_date).toLocaleString()}\n` +
-        `- 內容長度: ${result.content?.length || 0} 字符\n` +
-        `- 關注者: ${result.watchers?.length || 0} 人`
+        `- Project: ${resolvedProject.name}\n` +
+        `- Created: ${new Date(result.created_date).toLocaleString()}\n` +
+        `- Content Length: ${result.content?.length || 0} characters\n` +
+        `- Watchers: ${result.watchers?.length || 0} users`
       );
     } catch (error) {
       console.error('Failed to create wiki page:', error);
@@ -89,21 +89,21 @@ export const listWikiPagesTool = {
       
       if (!wikiPages || wikiPages.length === 0) {
         return createSuccessResponse(
-          `📖 **${resolvedProject.name} - Wiki頁面列表**\n\n` +
+          `**${resolvedProject.name} - Wiki Pages**\n\n` +
           `${RESPONSE_TEMPLATES.NO_WIKI_PAGES}`
         );
       }
 
-      const wikiList = wikiPages.map(wiki => 
-        `📖 **${wiki.slug}**\n` +
+      const wikiList = wikiPages.map(wiki =>
+        `**${wiki.slug}**\n` +
         `   - ID: ${wiki.id}\n` +
-        `   - 修改時間: ${new Date(wiki.modified_date).toLocaleString()}\n` +
-        `   - 關注者: ${wiki.watchers?.length || 0} 人\n` +
-        `   - 內容: ${wiki.content ? `${wiki.content.substring(0, 100)}${wiki.content.length > 100 ? '...' : ''}` : '無內容'}`
+        `   - Modified: ${new Date(wiki.modified_date).toLocaleString()}\n` +
+        `   - Watchers: ${wiki.watchers?.length || 0} users\n` +
+        `   - Content: ${wiki.content ? `${wiki.content.substring(0, 100)}${wiki.content.length > 100 ? '...' : ''}` : 'No content'}`
       ).join('\n\n');
 
       return createSuccessResponse(
-        `📖 **${resolvedProject.name} - Wiki頁面列表** (${wikiPages.length}個)\n\n` +
+        `**${resolvedProject.name} - Wiki Pages** (${wikiPages.length})\n\n` +
         wikiList
       );
     } catch (error) {
@@ -147,19 +147,19 @@ export const getWikiPageTool = {
       }
       
       return createSuccessResponse(
-        `📖 **Wiki頁面詳情**\n\n` +
-        `**基本信息**\n` +
+        `**Wiki Page Details**\n\n` +
+        `**Basic Information**\n` +
         `- ID: ${wikiPage.id}\n` +
         `- Slug: ${wikiPage.slug}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
-        `- 創建時間: ${new Date(wikiPage.created_date).toLocaleString()}\n` +
-        `- 修改時間: ${new Date(wikiPage.modified_date).toLocaleString()}\n` +
-        `- 版本: ${wikiPage.version}\n\n` +
-        `**協作信息**\n` +
-        `- 關注者: ${wikiPage.watchers?.length || 0} 人\n` +
-        `- 擁有者: ${wikiPage.owner_full_name || '未設定'}\n\n` +
-        `**內容**\n` +
-        `${wikiPage.content || '此Wiki頁面暫無內容'}`
+        `- Project: ${resolvedProject.name}\n` +
+        `- Created: ${new Date(wikiPage.created_date).toLocaleString()}\n` +
+        `- Modified: ${new Date(wikiPage.modified_date).toLocaleString()}\n` +
+        `- Version: ${wikiPage.version}\n\n` +
+        `**Collaboration Information**\n` +
+        `- Watchers: ${wikiPage.watchers?.length || 0} users\n` +
+        `- Owner: ${wikiPage.owner_full_name || 'Not set'}\n\n` +
+        `**Content**\n` +
+        `${wikiPage.content || 'This Wiki page has no content yet'}`
       );
     } catch (error) {
       console.error('Failed to get wiki page:', error);
@@ -212,14 +212,14 @@ export const updateWikiPageTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.WIKI_PAGE_UPDATED}\n\n` +
-        `📖 **Wiki頁面更新成功**\n` +
+        `**Wiki Page Updated Successfully**\n` +
         `- Wiki ID: ${result.id}\n` +
         `- Slug: ${result.slug}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
-        `- 更新時間: ${new Date(result.modified_date).toLocaleString()}\n` +
-        `- 版本: ${result.version}\n` +
-        `- 內容長度: ${result.content?.length || 0} 字符\n` +
-        `- 關注者: ${result.watchers?.length || 0} 人`
+        `- Project: ${resolvedProject.name}\n` +
+        `- Updated: ${new Date(result.modified_date).toLocaleString()}\n` +
+        `- Version: ${result.version}\n` +
+        `- Content Length: ${result.content?.length || 0} characters\n` +
+        `- Watchers: ${result.watchers?.length || 0} users`
       );
     } catch (error) {
       console.error('Failed to update wiki page:', error);
@@ -268,12 +268,12 @@ export const deleteWikiPageTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.WIKI_PAGE_DELETED}\n\n` +
-        `🗑️ **Wiki頁面刪除成功**\n` +
-        `- 已刪除Wiki: ${wikiSlug}\n` +
+        `**Wiki Page Deleted Successfully**\n` +
+        `- Deleted Wiki: ${wikiSlug}\n` +
         `- Wiki ID: ${wikiPageId}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
-        `- 刪除時間: ${new Date().toLocaleString()}\n\n` +
-        `⚠️ 注意：此操作不可逆轉`
+        `- Project: ${resolvedProject.name}\n` +
+        `- Deleted: ${new Date().toLocaleString()}\n\n` +
+        `Warning: This action is irreversible`
       );
     } catch (error) {
       console.error('Failed to delete wiki page:', error);
@@ -320,19 +320,18 @@ export const watchWikiPageTool = {
       }
 
       await taigaService.watchWikiPage(wikiPageId, watch);
-      
-      const action = watch ? '關注' : '取消關注';
-      const actionIcon = watch ? '👁️' : '🚫';
-      
+
+      const action = watch ? 'watched' : 'unwatched';
+
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.WIKI_PAGE_WATCHED}\n\n` +
-        `${actionIcon} **Wiki頁面${action}成功**\n` +
+        `**Wiki Page ${action.charAt(0).toUpperCase() + action.slice(1)} Successfully**\n` +
         `- Wiki: ${wikiSlug}\n` +
         `- Wiki ID: ${wikiPageId}\n` +
-        `- 專案: ${resolvedProject.name}\n` +
-        `- 操作: ${action}\n` +
-        `- 時間: ${new Date().toLocaleString()}\n\n` +
-        `${watch ? '🔔 您將收到此Wiki頁面的變更通知' : '🔕 您將不再收到此Wiki頁面的通知'}`
+        `- Project: ${resolvedProject.name}\n` +
+        `- Action: ${action}\n` +
+        `- Time: ${new Date().toLocaleString()}\n\n` +
+        `${watch ? 'You will receive notifications about changes to this Wiki page' : 'You will no longer receive notifications about this Wiki page'}`
       );
     } catch (error) {
       console.error('Failed to watch/unwatch wiki page:', error);
