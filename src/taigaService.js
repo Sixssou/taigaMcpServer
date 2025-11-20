@@ -112,7 +112,9 @@ export class TaigaService {
   async getProjectBySlug(slug) {
     try {
       const client = await createAuthenticatedClient();
-      const response = await client.get(`/projects/by_slug?slug=${slug}`);
+      const response = await client.get(`${API_ENDPOINTS.PROJECTS}/by_slug`, {
+        params: { slug }
+      });
       return response.data;
     } catch (error) {
       console.error(`Failed to get project by slug ${slug}:`, error.message);
