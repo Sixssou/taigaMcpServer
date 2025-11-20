@@ -21,9 +21,9 @@ export const uploadAttachmentTool = {
     itemType: z.enum(['issue', 'user_story', 'task']).describe('Type of item to attach file to'),
     itemId: z.union([z.number(), z.string()]).transform(val => typeof val === 'string' ? parseInt(val) : val).describe('ID of the item to attach file to'),
     projectIdentifier: z.string().optional().describe('Project ID or slug (required for issues)'),
-    // 主要方式：文件路徑 (Claude Client 支援)
+    // Primary method: File path (supported by Claude Client)
     filePath: z.string().optional().describe('File path - supports absolute paths, relative paths, or just filename (will search common locations)'),
-    // 進階方式：直接 Base64 數據 (程式化使用)
+    // Advanced method: Direct Base64 data (for programmatic use)
     fileData: z.string().optional().describe('Base64 encoded file data (for programmatic use)'),
     fileName: z.string().optional().describe('Original file name (required with fileData)'),
     mimeType: z.string().optional().describe('MIME type of the file (auto-detected if not provided)'),
@@ -36,16 +36,16 @@ export const uploadAttachmentTool = {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // 對於issues，projectIdentifier是必需的
+      // For issues, projectIdentifier is required
       if (itemType === 'issue' && !projectIdentifier) {
         return createErrorResponse('Project identifier is required when uploading attachments to issues. Please provide projectIdentifier parameter.');
       }
 
-      // 解析項目ID並驗證item存在
+      // Resolve project ID and verify item exists
       let actualItemId = itemId;
       if (itemType === 'issue' && projectIdentifier) {
         const projectId = await resolveProjectId(projectIdentifier);
-        // 先嘗試作為ref number，再嘗試作為直接ID
+        // Try as ref number first, then as direct ID
         try {
           const actualItem = await taigaService.getIssueByRef(itemId, projectId);
           actualItemId = actualItem.id;
@@ -62,13 +62,13 @@ export const uploadAttachmentTool = {
         }
       }
 
-      // 智能檢測使用哪種上傳模式
+      // Intelligently detect which upload mode to use
       let uploadResult;
       if (filePath) {
-        // 主要方式：使用文件路徑 (Claude Client 支援)
+        // Primary method: Using file path (supported by Claude Client)
         uploadResult = await taigaService.uploadAttachmentFromPath(itemType, actualItemId, filePath, description);
       } else if (fileData && fileName) {
-        // 進階方式：使用 Base64 數據 (程式化使用)
+        // Advanced method: Using Base64 data (for programmatic use)
         uploadResult = await taigaService.uploadAttachment(itemType, actualItemId, fileData, fileName, mimeType, description);
       } else {
         throw new Error('Please provide either filePath (recommended for Claude Client) or fileData+fileName (for programmatic use)');
@@ -76,12 +76,12 @@ export const uploadAttachmentTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.ATTACHMENT_UPLOADED}\n\n` +
-        `**附件信息**\n` +
-        `- 文件名: ${uploadResult.name}\n` +
-        `- 大小: ${(uploadResult.size / 1024).toFixed(2)} KB\n` +
-        `- 附件到: ${itemType} #${itemId}\n` +
-        `- 上傳時間: ${new Date(uploadResult.created_date).toLocaleString()}\n` +
-        `${uploadResult.description ? `- 描述: ${uploadResult.description}\n` : ''}`
+        `**Attachment Information**\n` +
+        `- Filename: ${uploadResult.name}\n` +
+        `- Size: ${(uploadResult.size / 1024).toFixed(2)} KB\n` +
+        `- Attached to: ${itemType} #${itemId}\n` +
+        `- Uploaded: ${new Date(uploadResult.created_date).toLocaleString()}\n` +
+        `${uploadResult.description ? `- Description: ${uploadResult.description}\n` : ''}`
       );
     } catch (error) {
       console.error('Error uploading attachment:', error);
@@ -112,8 +112,8 @@ export const listAttachmentsTool = {
       
       if (attachments.length === 0) {
         return createSuccessResponse(
-          `**${itemType} #${itemId} 附件列表**\n\n` +
-          `暫無附件`
+          `**${itemType} #${itemId} Attachment List**\n\n` +
+          `No attachments`
         );
       }
 
@@ -123,15 +123,15 @@ export const listAttachmentsTool = {
         return (
           `**${att.name}**\n` +
           `   - ID: ${att.id}\n` +
-          `   - 大小: ${sizeKB} KB\n` +
-          `   - 上傳日期: ${uploadDate}\n` +
-          `   - 上傳者: ${att.owner_name || '未知'}\n` +
-          `${att.description ? `   - 描述: ${att.description}\n` : ''}`
+          `   - Size: ${sizeKB} KB\n` +
+          `   - Upload Date: ${uploadDate}\n` +
+          `   - Uploader: ${att.owner_name || 'Unknown'}\n` +
+          `${att.description ? `   - Description: ${att.description}\n` : ''}`
         );
       }).join('\n');
 
       return createSuccessResponse(
-        `**${itemType} #${itemId} 附件列表** (共 ${attachments.length} 個)\n\n` +
+        `**${itemType} #${itemId} Attachment List** (${attachments.length} total)\n\n` +
         attachmentList
       );
     } catch (error) {
@@ -163,10 +163,10 @@ export const downloadAttachmentTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.ATTACHMENT_DOWNLOADED}\n\n` +
-        `**下載信息**\n` +
-        `- 文件名: ${result.filename}\n` +
-        `- 保存位置: ${result.savedPath}\n` +
-        `- 文件大小: ${(result.size / 1024).toFixed(2)} KB`
+        `**Download Information**\n` +
+        `- Filename: ${result.filename}\n` +
+        `- Saved to: ${result.savedPath}\n` +
+        `- File Size: ${(result.size / 1024).toFixed(2)} KB`
       );
     } catch (error) {
       console.error('Error downloading attachment:', error);
@@ -199,7 +199,7 @@ export const deleteAttachmentTool = {
       
       return createSuccessResponse(
         `${SUCCESS_MESSAGES.ATTACHMENT_DELETED}\n\n` +
-        `附件 ID: ${attachmentId} 已成功刪除`
+        `Attachment ID: ${attachmentId} successfully deleted`
       );
     } catch (error) {
       console.error('Error deleting attachment:', error);

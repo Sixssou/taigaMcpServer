@@ -1,5 +1,4 @@
 /**
- * 評論系統MCP工具
  * Comment System MCP Tools for Taiga
  */
 
@@ -17,33 +16,33 @@ import {
 const taigaService = new TaigaService();
 
 /**
- * 解析並獲取實際的item
- * @param {string} itemType - 項目類型
- * @param {number} itemId - 項目ID
- * @param {string} projectIdentifier - 項目識別符
- * @returns {Promise<Object>} - 實際的item
+ * Parse and get actual item
+ * @param {string} itemType - Item type
+ * @param {number} itemId - Item ID
+ * @param {string} projectIdentifier - Project identifier
+ * @returns {Promise<Object>} - Actual item
  */
 async function resolveAndGetItem(itemType, itemId, projectIdentifier) {
-  // 對於issues，projectIdentifier是必需的
+  // For issues, projectIdentifier is required
   if (itemType === 'issue' && !projectIdentifier) {
     throw new Error('Project identifier is required when working with issues. Please provide projectIdentifier parameter.');
   }
 
-  // 解析項目ID
+  // Parse project ID
   const projectId = projectIdentifier ? await resolveProjectId(projectIdentifier) : null;
-  
-  // 根據itemType獲取實際的item，確保它存在於指定項目中
+
+  // Get actual item based on itemType, ensure it exists in specified project
   let actualItem;
   if (itemType === 'issue') {
-    // 對於issue，先嘗試作為ref number，再嘗試作為直接ID
+    // For issues, try as ref number first, then try as direct ID
     try {
-      // 首先嘗試作為reference number (如 #829)
+      // First try as reference number (e.g. #829)
       actualItem = await taigaService.getIssueByRef(itemId, projectId);
     } catch (refError) {
       try {
-        // 如果ref失敗，嘗試作為直接ID
+        // If ref fails, try as direct ID
         actualItem = await taigaService.getIssue(itemId);
-        // 檢查是否屬於正確的項目
+        // Check if it belongs to the correct project
         if (actualItem.project !== projectId) {
           throw new Error(`Issue #${itemId} does not belong to project ${projectIdentifier}`);
         }
@@ -52,7 +51,7 @@ async function resolveAndGetItem(itemType, itemId, projectIdentifier) {
       }
     }
   } else {
-    // 對於user_story和task，直接使用ID
+    // For user_story and task, use ID directly
     actualItem = { id: itemId };
   }
 
@@ -60,7 +59,7 @@ async function resolveAndGetItem(itemType, itemId, projectIdentifier) {
 }
 
 /**
- * 添加評論工具
+ * Add comment tool
  */
 export const addCommentTool = {
   name: 'addComment',
@@ -72,23 +71,23 @@ export const addCommentTool = {
   },
   handler: async ({ itemType, itemId, projectIdentifier, comment }) => {
     try {
-      // 檢查認證狀態
+      // Check authentication status
       if (!taigaService.isAuthenticated()) {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // 解析並獲取實際的item
+      // Parse and get actual item
       const actualItem = await resolveAndGetItem(itemType, itemId, projectIdentifier);
 
-      // 構建評論數據
+      // Build comment data
       const commentData = {
         comment: comment
       };
 
-      // 發送評論到Taiga (通過歷史API)
+      // Send comment to Taiga (via history API)
       const response = await taigaService.addComment(itemType, actualItem.id, commentData);
-      
-      // 格式化響應
+
+      // Format response
       const result = formatCommentResponse(response, 'added');
       return createSuccessResponse(`${SUCCESS_MESSAGES.COMMENT_ADDED}\n\n${result}`);
       
@@ -99,7 +98,7 @@ export const addCommentTool = {
 };
 
 /**
- * 查看評論列表工具
+ * List comments tool
  */
 export const listCommentsTool = {
   name: 'listComments',
@@ -111,25 +110,25 @@ export const listCommentsTool = {
   },
   handler: async ({ itemType, itemId, projectIdentifier }) => {
     try {
-      // 檢查認證狀態
+      // Check authentication status
       if (!taigaService.isAuthenticated()) {
         return createErrorResponse(ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
 
-      // 解析並獲取實際的item
+      // Parse and get actual item
       const actualItem = await resolveAndGetItem(itemType, itemId, projectIdentifier);
 
-      // 獲取項目歷史記錄（包含評論）
+      // Get item history (including comments)
       const history = await taigaService.getItemHistory(itemType, actualItem.id);
-      
-      // 過濾出評論相關的歷史記錄
+
+      // Filter comment-related history records
       const comments = filterCommentsFromHistory(history);
-      
+
       if (!comments || comments.length === 0) {
-        return createSuccessResponse(`**${itemType} #${itemId} 評論列表**\n\n目前沒有評論`);
+        return createSuccessResponse(`**${itemType} #${itemId} Comment List**\n\nNo comments currently`);
       }
-      
-      // 格式化評論列表
+
+      // Format comment list
       const formattedComments = formatCommentsList(comments, itemType, itemId);
       return createSuccessResponse(formattedComments);
       
@@ -140,7 +139,7 @@ export const listCommentsTool = {
 };
 
 /**
- * 編輯評論工具
+ * Edit comment tool
  */
 export const editCommentTool = {
   name: 'editComment',
@@ -150,10 +149,10 @@ export const editCommentTool = {
   },
   handler: async ({ commentId, newComment }) => {
     try {
-      // 編輯評論
+      // Edit comment
       const response = await taigaService.editComment(commentId, newComment);
-      
-      // 格式化響應
+
+      // Format response
       const result = formatCommentResponse(response, 'edited');
       return createSuccessResponse(`${SUCCESS_MESSAGES.COMMENT_EDITED}\n\n${result}`);
       
@@ -167,7 +166,7 @@ export const editCommentTool = {
 };
 
 /**
- * 刪除評論工具
+ * Delete comment tool
  */
 export const deleteCommentTool = {
   name: 'deleteComment',
@@ -176,10 +175,10 @@ export const deleteCommentTool = {
   },
   handler: async ({ commentId }) => {
     try {
-      // 刪除評論
+      // Delete comment
       await taigaService.deleteComment(commentId);
-      
-      return createSuccessResponse(`${SUCCESS_MESSAGES.COMMENT_DELETED}\n\n評論 #${commentId} 已成功刪除`);
+
+      return createSuccessResponse(`${SUCCESS_MESSAGES.COMMENT_DELETED}\n\nComment #${commentId} successfully deleted`);
       
     } catch (error) {
       if (error.response?.status === 404) {
@@ -192,7 +191,7 @@ export const deleteCommentTool = {
 
 
 /**
- * 從歷史記錄中過濾出評論
+ * Filter comments from history
  */
 function filterCommentsFromHistory(history) {
   if (!Array.isArray(history)) return [];
@@ -206,49 +205,49 @@ function filterCommentsFromHistory(history) {
 }
 
 /**
- * 格式化評論列表
+ * Format comment list
  */
 function formatCommentsList(comments, itemType, itemId) {
-  let output = `**${itemType.replace('_', ' ')} #${itemId} 評論列表**\n\n`;
-  output += `共 ${comments.length} 個評論\n\n`;
-  
+  let output = `**${itemType.replace('_', ' ')} #${itemId} Comment List**\n\n`;
+  output += `Total ${comments.length} comments\n\n`;
+
   comments.forEach((comment, index) => {
-    const user = comment.user?.full_name || comment.user?.username || '未知用戶';
+    const user = comment.user?.full_name || comment.user?.username || 'Unknown user';
     const createdDate = formatDateTime(comment.created_at);
-    const commentText = comment.comment || '無內容';
-    
+    const commentText = comment.comment || 'No content';
+
     output += `**${index + 1}. ${user}** ${createdDate}\n`;
     output += `${commentText}\n`;
     if (comment.id) {
-      output += `評論ID: ${comment.id}\n`;
+      output += `Comment ID: ${comment.id}\n`;
     }
     output += '\n';
   });
-  
+
   return output;
 }
 
 /**
- * 格式化單個評論響應
+ * Format single comment response
  */
 function formatCommentResponse(response, action) {
-  const user = response.user?.full_name || response.user?.username || '未知用戶';
+  const user = response.user?.full_name || response.user?.username || 'Unknown user';
   const createdDate = formatDateTime(response.created_at);
-  const commentText = response.comment || '無內容';
-  
-  let output = `**評論已${action === 'added' ? '添加' : '編輯'}**\n\n`;
-  output += `用戶: ${user}\n`;
-  output += `時間: ${createdDate}\n`;
-  output += `內容: ${commentText}\n`;
+  const commentText = response.comment || 'No content';
+
+  let output = `**Comment ${action === 'added' ? 'Added' : 'Edited'}**\n\n`;
+  output += `User: ${user}\n`;
+  output += `Time: ${createdDate}\n`;
+  output += `Content: ${commentText}\n`;
   if (response.id) {
-    output += `評論ID: ${response.id}`;
+    output += `Comment ID: ${response.id}`;
   }
-  
+
   return output;
 }
 
 /**
- * 註冊評論系統工具
+ * Register comment system tools
  */
 export function registerCommentTools(server) {
   server.tool(addCommentTool.name, addCommentTool.schema, addCommentTool.handler);
