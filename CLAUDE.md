@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **File Attachment Management** - Upload, download, and manage project file resources
 - **Epic Project Management** - Large-scale project epic-level feature organization and management
 - **Wiki Knowledge Management** - Complete project documentation and knowledge base system
-- **Modular Architecture** - 42 MCP tools across 12 functional categories
+- **Modular Architecture** - 48 MCP tools across 12 functional categories
 - **Professional Testing Framework** - Unit tests, integration tests, MCP protocol tests, specialized feature tests
 - **AI-Assisted Development** - Demonstrates human-AI collaborative software development potential
 
@@ -183,7 +183,7 @@ src/
     └── wikiTools.js     # Wiki management tools
 ```
 
-### MCP Tool Categories (44 tools)
+### MCP Tool Categories (48 tools)
 
 #### 🔐 Authentication Tools (1 tool)
 - `authenticate` - Taiga user authentication
@@ -206,9 +206,13 @@ src/
 - `addIssueToSprint` - Add/remove issues to/from sprints
 - `assignIssue` - Assign/unassign issues to team members
 
-#### 📝 User Story Management (2 tools)
+#### 📝 User Story Management (6 tools)
 - `listUserStories` - List project user stories
 - `createUserStory` - Create user stories
+- `getUserStory` - Get user story details
+- `updateUserStory` - Update user story properties
+- `deleteUserStory` - Delete user stories
+- `addUserStoryToSprint` - Add/remove user stories to/from sprints
 
 #### ✅ Task Management (3 tools)
 - `createTask` - Create tasks (linked to user stories)
