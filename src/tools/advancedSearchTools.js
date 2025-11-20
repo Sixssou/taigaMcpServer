@@ -1,5 +1,4 @@
 /**
- * 高級搜索MCP工具
  * Advanced Search MCP Tools for Taiga
  */
 
@@ -35,32 +34,32 @@ export const advancedSearchTool = {
       const projectId = await resolveProjectId(projectIdentifier);
       const parser = new QueryParser();
       const executor = new QueryExecutor(taigaService);
-      
-      // 映射類型
-      const dataType = type === 'issues' ? 'ISSUE' : 
+
+      // Map type
+      const dataType = type === 'issues' ? 'ISSUE' :
                        type === 'user_stories' ? 'USER_STORY' : 'TASK';
-      
-      // 解析查詢
+
+      // Parse query
       const parsedQuery = parser.parse(query, dataType);
-      
-      // 執行查詢
+
+      // Execute query
       const startTime = Date.now();
       const result = await executor.execute(parsedQuery, projectId);
       const endTime = Date.now();
-      
-      // 格式化結果
+
+      // Format results
       const formattedResults = formatAdvancedSearchResults(
-        result.results, 
-        type, 
-        query, 
+        result.results,
+        type,
+        query,
         endTime - startTime
       );
-      
+
       return createSuccessResponse(formattedResults);
-      
+
     } catch (error) {
-      if (error.message.includes('查詢解析錯誤') || error.message.includes('查詢執行失敗')) {
-        return createErrorResponse(`${error.message}\n\n💡 查詢語法示例:\n${getQueryExamples()}`);
+      if (error.message.includes('Query parsing error') || error.message.includes('Query execution failed')) {
+        return createErrorResponse(`${error.message}\n\nQuery syntax examples:\n${getQueryExamples()}`);
       }
       return createErrorResponse(`${ERROR_MESSAGES.FAILED_TO_LIST_ISSUES}: ${error.message}`);
     }
@@ -68,7 +67,7 @@ export const advancedSearchTool = {
 };
 
 /**
- * 查詢語法幫助工具
+ * Query syntax help tool
  */
 export const queryHelpTool = {
   name: 'queryHelp',
@@ -98,15 +97,15 @@ export const queryHelpTool = {
       }
       
       return createSuccessResponse(helpContent);
-      
+
     } catch (error) {
-      return createErrorResponse(`無法獲取幫助信息: ${error.message}`);
+      return createErrorResponse(`Unable to get help information: ${error.message}`);
     }
   }
 };
 
 /**
- * 查詢語法驗證工具
+ * Query syntax validation tool
  */
 export const validateQueryTool = {
   name: 'validateQuery',
@@ -117,10 +116,10 @@ export const validateQueryTool = {
   handler: async ({ query, type = 'issues' }) => {
     try {
       const parser = new QueryParser();
-      const dataType = type === 'issues' ? 'ISSUE' : 
+      const dataType = type === 'issues' ? 'ISSUE' :
                        type === 'user_stories' ? 'USER_STORY' : 'TASK';
-      
-      // 解析查詢（這會驗證語法）
+
+      // Parse query (this validates syntax)
       const parsedQuery = parser.parse(query, dataType);
       const stats = parser.getQueryStats(parsedQuery);
       
@@ -152,7 +151,7 @@ ${parsedQuery.filters.map((filter, index) =>
 };
 
 /**
- * 格式化高級搜索結果
+ * Format advanced search results
  */
 function formatAdvancedSearchResults(results, type, query, executionTime) {
   if (!results || results.length === 0) {
@@ -164,28 +163,28 @@ function formatAdvancedSearchResults(results, type, query, executionTime) {
   output += `Type: ${type}\n`;
   output += `Execution Time: ${executionTime}ms\n`;
   output += `Found ${results.length} results\n\n`;
-  
-  // 根據類型格式化結果
+
+  // Format results by type
   results.forEach((item, index) => {
     output += formatSearchItem(item, type, index + 1);
     output += '\n';
   });
-  
-  // 如果結果太多，提示使用限制
+
+  // If too many results, suggest using limit
   if (results.length > 20) {
     output += `\nTip: Many results found. Consider using LIMIT clause to restrict result count, e.g.: \`${query} LIMIT 10\``;
   }
-  
+
   return output;
 }
 
 /**
- * 格式化單個搜索結果項
+ * Format single search result item
  */
 function formatSearchItem(item, type, index) {
   const ref = getSafeValue(item, 'ref', index);
-  const subject = getSafeValue(item, 'subject', '無標題');
-  const status = getSafeValue(item, 'status_extra_info.name', item.status || '未知');
+  const subject = getSafeValue(item, 'subject', 'No title');
+  const status = getSafeValue(item, 'status_extra_info.name', item.status || 'Unknown');
   const created = formatDateTime(item.created_date);
   
   let output = `**${index}. #${ref}: ${subject}**\n`;
@@ -217,26 +216,26 @@ function formatSearchItem(item, type, index) {
 }
 
 /**
- * 獲取查詢示例
+ * Get query examples
  */
 function getQueryExamples() {
   return `
-基礎查詢:
+Basic queries:
 - status:open
-- priority:high  
+- priority:high
 - assignee:john
 
-比較查詢:
+Comparison queries:
 - points:>=5
 - created:>2024-01-01
 - updated:<7d
 
-文本搜索:
-- subject:contains:"登入"
+Text search:
+- subject:contains:"login"
 - description:*API*
 - tags:frontend
 
-邏輯組合:
+Logic combinations:
 - status:open AND priority:high
 - type:bug OR type:feature
 - NOT status:closed
@@ -244,7 +243,7 @@ function getQueryExamples() {
 }
 
 /**
- * 獲取查詢語法幫助
+ * Get query syntax help
  */
 function getQuerySyntaxHelp() {
   return `
@@ -279,7 +278,7 @@ function getQuerySyntaxHelp() {
 }
 
 /**
- * 獲取操作符幫助
+ * Get operators help
  */
 function getOperatorsHelp() {
   return `
@@ -310,7 +309,7 @@ function getOperatorsHelp() {
 }
 
 /**
- * 獲取查詢示例幫助
+ * Get query examples help
  */
 function getQueryExamplesHelp() {
   return `
@@ -347,7 +346,7 @@ assignee:john AND (type:bug OR priority:urgent) ORDER BY created ASC LIMIT 10
 }
 
 /**
- * 獲取字段幫助  
+ * Get fields help
  */
 function getFieldsHelp() {
   return `
@@ -382,7 +381,7 @@ function getFieldsHelp() {
 }
 
 /**
- * 獲取通用幫助
+ * Get general help
  */
 function getGeneralHelp() {
   return `
@@ -413,7 +412,7 @@ Start your advanced query journey!
 }
 
 /**
- * 註冊高級搜索工具
+ * Register advanced search tools
  */
 export function registerAdvancedSearchTools(server) {
   server.tool(advancedSearchTool.name, advancedSearchTool.schema, advancedSearchTool.handler);
