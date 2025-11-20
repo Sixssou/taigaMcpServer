@@ -54,6 +54,7 @@ export interface Milestone {
   total_points: number;
   closed_points: number;
   user_stories: number[];
+  version: number;
 }
 
 export interface UserStory {
@@ -75,6 +76,7 @@ export interface UserStory {
   total_points: number;
   tags: string[];
   epic?: number;
+  version: number;
 }
 
 export interface Task {
@@ -94,6 +96,7 @@ export interface Task {
   owner: number;
   tags: string[];
   milestone?: number;
+  version: number;
 }
 
 export interface Issue {
@@ -115,6 +118,7 @@ export interface Issue {
   assigned_to_extra_info?: any;
   owner: number;
   tags: string[];
+  version: number;
 }
 
 export interface Comment {
@@ -160,6 +164,7 @@ export interface Epic {
   team_requirement: boolean;
   assigned_to?: number;
   user_stories: number[];
+  version: number;
 }
 
 export interface WikiPage {
@@ -174,6 +179,7 @@ export interface WikiPage {
   html: string;
   is_watcher: boolean;
   watchers: number[];
+  version: number;
 }
 
 export interface MilestoneStats {
