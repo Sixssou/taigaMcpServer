@@ -23,11 +23,11 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize Taiga client
-const taigaClient = new TaigaClient(
-  process.env.TAIGA_API_URL || 'https://api.taiga.io/api/v1',
-  process.env.TAIGA_USERNAME,
-  process.env.TAIGA_PASSWORD
-);
+const taigaClient = new TaigaClient({
+  apiUrl: process.env.TAIGA_API_URL || 'https://api.taiga.io/api/v1',
+  username: process.env.TAIGA_USERNAME,
+  password: process.env.TAIGA_PASSWORD
+});
 
 // Create MCP Server
 const mcpServer = new Server(
@@ -348,11 +348,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'list_issues': {
-        const issues = await taigaClient.listIssues(
-          Number(args?.project_id),
-          args?.milestone_id ? Number(args.milestone_id) : undefined,
-          args?.status_id ? Number(args.status_id) : undefined
-        );
+        const issues = await taigaClient.listIssues(Number(args?.project_id));
         return {
           content: [
             {
@@ -396,10 +392,12 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'update_issue_status': {
-        const issue = await taigaClient.updateIssueStatus(
+        const issue = await taigaClient.updateIssue(
           Number(args?.issue_id),
-          Number(args?.status_id),
-          Number(args?.version)
+          {
+            status: Number(args?.status_id),
+            version: Number(args?.version)
+          }
         );
         return {
           content: [
@@ -412,10 +410,12 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'assign_issue': {
-        const issue = await taigaClient.assignIssue(
+        const issue = await taigaClient.updateIssue(
           Number(args?.issue_id),
-          args?.assigned_to ? Number(args.assigned_to) : null,
-          Number(args?.version)
+          {
+            assigned_to: args?.assigned_to ? Number(args.assigned_to) : null,
+            version: Number(args?.version)
+          }
         );
         return {
           content: [
@@ -428,10 +428,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'list_user_stories': {
-        const stories = await taigaClient.listUserStories(
-          Number(args?.project_id),
-          args?.milestone_id ? Number(args.milestone_id) : undefined
-        );
+        const stories = await taigaClient.listUserStories(Number(args?.project_id));
         return {
           content: [
             {
