@@ -9,11 +9,19 @@ RUN apk add --no-cache dumb-init
 # Upgrade npm
 RUN npm install -g npm@latest
 
-# Copy everything
-COPY . .
+# Copy package files first
+COPY package*.json ./
+COPY packages/taiga-core/package.json ./packages/taiga-core/
+COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
 
 # Install all dependencies
 RUN npm install --legacy-peer-deps
+
+# Copy source code
+COPY packages/taiga-core/src ./packages/taiga-core/src
+COPY packages/taiga-core/tsconfig.json ./packages/taiga-core/
+COPY packages/taiga-rest-api/src ./packages/taiga-rest-api/src
+COPY packages/taiga-rest-api/tsconfig.json ./packages/taiga-rest-api/
 
 # Build taiga-core
 WORKDIR /app/packages/taiga-core
