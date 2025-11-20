@@ -1,4 +1,4 @@
-# Dockerfile for Taiga REST API (Simplified Single-Stage)
+# Dockerfile for Taiga REST API (Flattened - No Workspaces)
 FROM node:20-alpine
 
 WORKDIR /app
@@ -6,35 +6,36 @@ WORKDIR /app
 # Install system dependencies
 RUN apk add --no-cache dumb-init
 
-# Upgrade npm
-RUN npm install -g npm@latest
-
-# Copy package files first
+# Copy ALL package.json files
 COPY package*.json ./
 COPY packages/taiga-core/package.json ./packages/taiga-core/
-COPY packages/taiga-rest-api/package.json ./packages/taiga-rest-api/
-
-# Install all dependencies at root level (npm workspaces will handle all packages)
-RUN npm install --legacy-peer-deps
-
-# Verify express is installed and list what's in node_modules (debug step)
-RUN ls -la /app/node_modules/ | grep -E "express|swagger" || echo "Express/Swagger not found in root node_modules"
-RUN test -d /app/packages/taiga-rest-api/node_modules && ls -la /app/packages/taiga-rest-api/node_modules/ | grep express || echo "No workspace node_modules or express not found there"
-
-# Copy source code
 COPY packages/taiga-core/src ./packages/taiga-core/src
 COPY packages/taiga-core/tsconfig.json ./packages/taiga-core/
-COPY packages/taiga-rest-api/src ./packages/taiga-rest-api/src
-COPY packages/taiga-rest-api/tsconfig.json ./packages/taiga-rest-api/
 
-# Build both packages from root using npm workspaces
-RUN npm run build:core
-RUN npm run build:api
+# Build taiga-core first
+WORKDIR /app/packages/taiga-core
+RUN npm install --legacy-peer-deps
+RUN npm run build
+
+# Now set up rest-api in its own space
+WORKDIR /app/rest-api
+COPY packages/taiga-rest-api/package.json ./
+COPY packages/taiga-rest-api/tsconfig.json ./
+COPY packages/taiga-rest-api/src ./src
+
+# Install rest-api dependencies (express, etc) directly here
+RUN npm install --legacy-peer-deps
+
+# Copy built taiga-core into node_modules
+RUN mkdir -p node_modules/@taiga-monorepo
+RUN cp -r /app/packages/taiga-core node_modules/@taiga-monorepo/core
+
+# Build rest-api
+RUN npm run build
 
 # Set production environment
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV NODE_PATH=/app/node_modules
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -45,5 +46,4 @@ EXPOSE 3000
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
-# Run from root so node_modules are properly resolved
-CMD ["node", "packages/taiga-rest-api/dist/server.js"]
+CMD ["node", "dist/server.js"]
