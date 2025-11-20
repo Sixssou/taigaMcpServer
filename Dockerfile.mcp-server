@@ -1,0 +1,67 @@
+# Multi-stage Dockerfile for Taiga MCP Server
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN apk add --no-cache dumb-init
+
+# ========================================
+# Build taiga-core
+# ========================================
+FROM base AS build-core
+WORKDIR /app/packages/taiga-core
+
+# Copy taiga-core files
+COPY packages/taiga-core/package.json ./
+COPY packages/taiga-core/src ./src
+COPY packages/taiga-core/tsconfig.json ./
+
+# Install dependencies and build
+RUN npm install --legacy-peer-deps
+RUN npm run build
+
+# Create a tarball of the built package
+RUN npm pack
+
+# ========================================
+# Build MCP Server
+# ========================================
+FROM base AS build-mcp
+WORKDIR /app/mcp-server
+
+# Copy package files
+COPY packages/taiga-mcp-server/package.json ./
+COPY packages/taiga-mcp-server/tsconfig.json ./
+COPY packages/taiga-mcp-server/src ./src
+
+# Copy the tarball from build-core stage
+COPY --from=build-core /app/packages/taiga-core/*.tgz /tmp/
+
+# Modify package.json to use the tarball
+RUN sed -i 's|"@taiga-monorepo/core": "file:../taiga-core"|"@taiga-monorepo/core": "file:/tmp/taiga-monorepo-core-2.0.0.tgz"|g' package.json
+
+# Install dependencies including the local tarball
+RUN npm install --legacy-peer-deps
+
+# Build the MCP Server
+RUN npm run build
+
+# ========================================
+# Production stage
+# ========================================
+FROM base AS production
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV MCP_PORT=3001
+
+# Copy built application and dependencies
+COPY --from=build-mcp /app/mcp-server/dist ./dist
+COPY --from=build-mcp /app/mcp-server/node_modules ./node_modules
+COPY --from=build-mcp /app/mcp-server/package.json ./
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/index.js"]

@@ -87,36 +87,39 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ========================= LEGACY MCP SERVER (Optional) =========================
+  # ========================= TAIGA MCP SERVER (SSE Transport) =========================
   taiga-mcp-server:
-    profiles:
-      - mcp
     build:
       context: .
-      dockerfile: Dockerfile
-      target: production
-    image: taiga-mcp-server:latest
+      dockerfile: Dockerfile.mcp-server
     container_name: taiga-mcp-server
     restart: unless-stopped
+    ports:
+      - "3001:3001"
     environment:
       - NODE_ENV=production
+      - MCP_PORT=3001
       - TAIGA_API_URL=${TAIGA_API_URL:-https://api.taiga.io/api/v1}
       - TAIGA_USERNAME=${TAIGA_USERNAME}
       - TAIGA_PASSWORD=${TAIGA_PASSWORD}
     env_file:
       - .env
-    stdin_open: true
-    tty: false
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
       - taiga-network
     deploy:
       resources:
         limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
           memory: 256M
           cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
     logging:
       driver: json-file
       options:
