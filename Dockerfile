@@ -29,9 +29,14 @@ COPY --chown=node:node . .
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "console.log('Health check passed')" || exit 1
 
-# Expose port for debugging (optional)
+# Expose port for HTTP/SSE mode
 EXPOSE 3000
+
+# Environment variable to choose transport mode
+ENV MCP_TRANSPORT=stdio
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
+
+# Default to stdio mode (use start:http for HTTP mode)
 CMD ["node", "src/index.js"]

@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Stdio mode (default, for CLI usage)
   taiga-mcp-server:
     build:
       context: .
@@ -9,22 +10,22 @@ services:
     image: taiga-mcp-server:latest
     container_name: taiga-mcp-server
     restart: unless-stopped
-    
+
     # Environment variables
     environment:
       - NODE_ENV=production
       - TAIGA_API_URL=${TAIGA_API_URL:-https://api.taiga.io/api/v1}
       - TAIGA_USERNAME=${TAIGA_USERNAME}
       - TAIGA_PASSWORD=${TAIGA_PASSWORD}
-    
+
     # Load environment from .env file
     env_file:
       - .env
-    
+
     # Stdin/stdout for MCP communication
     stdin_open: true
     tty: false
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "node", "-e", "console.log('Health check passed')"]
@@ -32,7 +33,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    
+
     # Resource limits
     deploy:
       resources:
@@ -42,13 +43,72 @@ services:
         reservations:
           memory: 128M
           cpus: '0.25'
-    
+
     # Logging configuration
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+
+  # HTTP/SSE mode (for n8n and internal network access)
+  taiga-mcp-http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: taiga-mcp-server:latest
+    container_name: taiga-mcp-http
+    restart: unless-stopped
+
+    # HTTP server configuration
+    command: ["node", "src/httpServer.js"]
+
+    # Environment variables
+    environment:
+      - NODE_ENV=production
+      - TAIGA_API_URL=${TAIGA_API_URL:-https://api.taiga.io/api/v1}
+      - TAIGA_USERNAME=${TAIGA_USERNAME}
+      - TAIGA_PASSWORD=${TAIGA_PASSWORD}
+      - MCP_HTTP_PORT=3000
+      - MCP_HTTP_HOST=0.0.0.0
+
+    # Load environment from .env file
+    env_file:
+      - .env
+
+    # Expose port for internal network access
+    ports:
+      - "3000:3000"
+
+    # Health check for HTTP server
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Network configuration for internal access
+    networks:
+      - taiga-network
 
 # Optional: Development service
   taiga-mcp-dev:
@@ -73,3 +133,9 @@ services:
     stdin_open: true
     tty: true
     command: ["npm", "run", "test:full"]
+
+# Network configuration for internal communication
+networks:
+  taiga-network:
+    name: taiga-network
+    driver: bridge
