@@ -162,14 +162,21 @@ function createHttpServer() {
         }
       }
 
-      const transport = new SSEServerTransport('/message', res);
-      await mcpServer.connect(transport);
-
-      console.log('[HTTP] MCP server connected via SSE');
+      try {
+        const transport = new SSEServerTransport('/message', res);
+        await mcpServer.connect(transport);
+        console.log('[HTTP] MCP server connected via SSE');
+      } catch (error) {
+        console.error('[HTTP] Error connecting MCP server:', error);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      }
       return;
     }
 
-    // Handle POST requests to /message endpoint (for SSE responses)
+    // Handle POST requests to /message endpoint (for SSE client messages)
     if (req.url === '/message' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => {
@@ -179,10 +186,15 @@ function createHttpServer() {
       req.on('end', async () => {
         try {
           const message = JSON.parse(body);
-          console.log('[HTTP] Received message:', message);
+          console.log('[HTTP] Received message from client:', JSON.stringify(message).substring(0, 200));
 
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
+          // SSEServerTransport handles the message internally
+          // We just acknowledge receipt
+          res.writeHead(202, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(JSON.stringify({ accepted: true }));
         } catch (error) {
           console.error('[HTTP] Error processing message:', error);
           res.writeHead(400, { 'Content-Type': 'application/json' });
