@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Your n8n instance
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      # Optional: Enable basic auth
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=changeme
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - taiga-network
+    depends_on:
+      - taiga-mcp-http
+
+  # Taiga MCP Server (HTTP mode)
+  taiga-mcp-http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: taiga-mcp-http
+    restart: unless-stopped
+    command: ["node", "src/httpServer.js"]
+    environment:
+      - NODE_ENV=production
+      - TAIGA_API_URL=${TAIGA_API_URL:-https://api.taiga.io/api/v1}
+      - TAIGA_USERNAME=${TAIGA_USERNAME}
+      - TAIGA_PASSWORD=${TAIGA_PASSWORD}
+      - MCP_HTTP_PORT=3000
+      - MCP_HTTP_HOST=0.0.0.0
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - taiga-network
+
+networks:
+  taiga-network:
+    name: taiga-network
+    driver: bridge
+
+volumes:
+  n8n_data:
+    driver: local
