@@ -205,8 +205,8 @@ function createHttpServer() {
             response = {
               tools: allTools.map(tool => ({
                 name: tool.name,
-                description: tool.schema.description || '',
-                inputSchema: tool.schema
+                description: tool.description || '',
+                inputSchema: tool.schema || {}
               }))
             };
           } else if (request.method === 'tools/call') {
