@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "start:http": "node src/httpServer.js",
     "test": "node test/unitTest.js && node test/quickTest.js",
     "test:unit": "node test/unitTest.js",
     "test:quick": "node test/quickTest.js",
