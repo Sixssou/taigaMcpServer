@@ -104,6 +104,10 @@ export const BATCH_OPERATIONS = {
   SUCCESS_BATCH_CREATED_ISSUES: 'Batch Issues creation completed',
   SUCCESS_BATCH_CREATED_STORIES: 'Batch User Stories creation completed',
   SUCCESS_BATCH_CREATED_TASKS: 'Batch Tasks creation completed',
+  SUCCESS_BATCH_UPDATED_TASKS: 'Batch Tasks update completed',
+  SUCCESS_BATCH_UPDATED_STORIES: 'Batch User Stories update completed',
+  SUCCESS_BATCH_ASSIGNMENT: 'Batch assignment completed',
+  SUCCESS_BATCH_DUE_DATES: 'Batch due dates update completed',
   BATCH_OPERATION_START: 'Starting batch operation...',
   BATCH_OPERATION_COMPLETE: 'Batch operation completed!',
 };

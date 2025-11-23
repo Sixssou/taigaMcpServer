@@ -156,17 +156,60 @@ export async function resolveTask(taskIdentifier, projectIdentifier) {
 }
 
 /**
- * Resolve milestone identifier to milestone object
- * Handles direct IDs and milestone names
+ * Calculate Levenshtein distance for fuzzy matching
+ * @private
+ */
+function levenshteinDistance(str1, str2) {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix = Array(len1 + 1).fill(null).map(() => Array(len2 + 1).fill(0));
+
+  for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+  for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return matrix[len1][len2];
+}
+
+/**
+ * Calculate similarity score between two strings (0-100)
+ * @private
+ */
+function similarityScore(str1, str2) {
+  const maxLen = Math.max(str1.length, str2.length);
+  if (maxLen === 0) return 100;
+  const distance = levenshteinDistance(str1.toLowerCase(), str2.toLowerCase());
+  return Math.round(((maxLen - distance) / maxLen) * 100);
+}
+
+/**
+ * Resolve milestone identifier to milestone object with fuzzy matching support
+ * Handles direct IDs and milestone names (with fuzzy matching)
  * @param {string} milestoneIdentifier - Milestone ID or name
  * @param {string} projectIdentifier - Project ID or slug (required for name resolution)
- * @returns {Promise<Object>} - Milestone object
+ * @param {Object} options - Resolution options
+ * @param {boolean} options.fuzzyMatch - Enable fuzzy matching (default: true)
+ * @param {number} options.fuzzyThreshold - Minimum similarity score (default: 70)
+ * @returns {Promise<Object>} - Milestone object with match information
  */
-export async function resolveMilestone(milestoneIdentifier, projectIdentifier) {
+export async function resolveMilestone(milestoneIdentifier, projectIdentifier, options = {}) {
+  const { fuzzyMatch = true, fuzzyThreshold = 70 } = options;
+
   // If it's a pure number, try as direct ID first
   if (/^\d+$/.test(milestoneIdentifier)) {
     try {
-      return await taigaService.getMilestone(milestoneIdentifier);
+      const milestone = await taigaService.getMilestone(milestoneIdentifier);
+      return { ...milestone, _matchType: 'id' };
     } catch (error) {
       // If that fails and we have a project identifier, try by name
       if (projectIdentifier) {
@@ -178,7 +221,7 @@ export async function resolveMilestone(milestoneIdentifier, projectIdentifier) {
         );
 
         if (milestone) {
-          return milestone;
+          return { ...milestone, _matchType: 'name_as_id' };
         }
 
         // If both fail, throw error
@@ -197,19 +240,112 @@ export async function resolveMilestone(milestoneIdentifier, projectIdentifier) {
 
   const projectId = await resolveProjectId(projectIdentifier);
   const milestones = await taigaService.listMilestones(projectId);
-  const milestone = milestones.find(m =>
-    m.name === milestoneIdentifier ||
-    m.name.toLowerCase() === milestoneIdentifier.toLowerCase()
-  );
 
-  if (!milestone) {
-    const availableMilestones = milestones.map(m => `- ${m.name} (ID: ${m.id})`).join('\n');
-    throw new Error(
-      `Milestone "${milestoneIdentifier}" not found in project. Available milestones:\n${availableMilestones}`
-    );
+  // Try exact match first
+  let milestone = milestones.find(m => m.name === milestoneIdentifier);
+  if (milestone) {
+    return { ...milestone, _matchType: 'exact' };
   }
 
-  return milestone;
+  // Try case-insensitive match
+  milestone = milestones.find(m =>
+    m.name.toLowerCase() === milestoneIdentifier.toLowerCase()
+  );
+  if (milestone) {
+    return { ...milestone, _matchType: 'case_insensitive' };
+  }
+
+  // Try fuzzy matching if enabled
+  if (fuzzyMatch) {
+    const fuzzyMatches = milestones
+      .map(m => ({
+        milestone: m,
+        score: similarityScore(milestoneIdentifier, m.name)
+      }))
+      .filter(match => match.score >= fuzzyThreshold)
+      .sort((a, b) => b.score - a.score);
+
+    if (fuzzyMatches.length > 0) {
+      const bestMatch = fuzzyMatches[0];
+
+      // If there are multiple similar matches, suggest them
+      if (fuzzyMatches.length > 1 && fuzzyMatches[1].score >= fuzzyThreshold) {
+        const suggestions = fuzzyMatches.slice(0, 3).map(m =>
+          `  - "${m.milestone.name}" (ID: ${m.milestone.id}, Similarity: ${m.score}%)`
+        ).join('\n');
+
+        throw new Error(
+          `Multiple similar milestones found for "${milestoneIdentifier}". Please be more specific:\n${suggestions}\n\n` +
+          formatAvailableMilestones(milestones)
+        );
+      }
+
+      return {
+        ...bestMatch.milestone,
+        _matchType: 'fuzzy',
+        _matchScore: bestMatch.score
+      };
+    }
+  }
+
+  // No match found
+  throw new Error(
+    `Milestone "${milestoneIdentifier}" not found in project.\n\n` +
+    formatAvailableMilestones(milestones) +
+    `\n\nTip: Try using fuzzy matching by providing a partial name.`
+  );
+}
+
+/**
+ * Format available milestones for error messages
+ * @private
+ */
+function formatAvailableMilestones(milestones) {
+  const activeMilestones = milestones.filter(m => !m.closed);
+  const closedMilestones = milestones.filter(m => m.closed);
+
+  let result = `Available milestones (${activeMilestones.length} active, ${closedMilestones.length} closed):\n\n`;
+
+  if (activeMilestones.length > 0) {
+    result += 'Active:\n';
+    activeMilestones.forEach(m => {
+      result += `  - "${m.name}" (ID: ${m.id})`;
+      if (m.estimated_start || m.estimated_finish) {
+        result += ` [${m.estimated_start || '?'} to ${m.estimated_finish || '?'}]`;
+      }
+      result += '\n';
+    });
+    result += '\n';
+  }
+
+  if (closedMilestones.length > 0) {
+    result += 'Closed:\n';
+    closedMilestones.forEach(m => {
+      result += `  - "${m.name}" (ID: ${m.id})\n`;
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Find sprint/milestone with fuzzy matching support
+ * More user-friendly wrapper around resolveMilestone
+ * @param {string} searchTerm - Search term (ID or name)
+ * @param {string} projectIdentifier - Project ID or slug
+ * @param {Object} options - Search options
+ * @returns {Promise<Object>} - Found milestone with match information
+ */
+export async function findSprint(searchTerm, projectIdentifier, options = {}) {
+  try {
+    return await resolveMilestone(searchTerm, projectIdentifier, {
+      fuzzyMatch: true,
+      fuzzyThreshold: options.fuzzyThreshold || 60, // Lower threshold for findSprint
+      ...options
+    });
+  } catch (error) {
+    throw new Error(`Sprint search failed: ${error.message}`);
+  }
 }
 
 /**

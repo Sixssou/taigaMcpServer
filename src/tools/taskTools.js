@@ -205,29 +205,19 @@ export const updateTaskTool = {
         if (assignedTo.toLowerCase() === 'unassign' || assignedTo.toLowerCase() === 'none') {
           updateData.assigned_to = null;
         } else {
-          // Get project members to find the assignee
-          const members = await taigaService.getProjectMembers(projectId);
-
-          // Try to find user by full name, email, or user ID
-          const member = members.find(m =>
-            m.full_name === assignedTo ||
-            m.user === parseInt(assignedTo) ||
-            m.email === assignedTo ||
-            m.user_email === assignedTo ||
-            m.full_name?.toLowerCase() === assignedTo.toLowerCase()
-          );
-
-          if (!member) {
-            const availableMembers = members.map(m =>
-              `- ${m.full_name} (${m.user_email || m.email}) - ID: ${m.user}`
-            ).join('\n');
-
+          // Use enhanced user resolution
+          const { resolveUser } = await import('../userResolution.js');
+          try {
+            const user = await resolveUser(assignedTo, projectId, {
+              fuzzyMatch: true,
+              fuzzyThreshold: 70
+            });
+            updateData.assigned_to = user.userId;
+          } catch (error) {
             return createErrorResponse(
-              `User "${assignedTo}" not found in project. Available members:\n${availableMembers}`
+              `Failed to resolve user for assignment:\n${error.message}`
             );
           }
-
-          updateData.assigned_to = member.user;
         }
       }
 
