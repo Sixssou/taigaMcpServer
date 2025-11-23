@@ -9,7 +9,9 @@ import {
   SORT_DIRECTIONS,
   TIME_KEYWORDS,
   VALIDATION_RULES,
-  FIELD_TYPES
+  FIELD_TYPES,
+  FIELD_ALIASES,
+  SPECIAL_VALUES
 } from './queryGrammar.js';
 
 export class QueryParser {
@@ -55,21 +57,40 @@ export class QueryParser {
    */
   tokenize(queryString) {
     const tokens = [];
-    const regex = /([A-Za-z_][A-Za-z0-9_]*):([><=!~]*)([^:\s()]+|\([^)]+\)|"[^"]*")|(\bAND\b|\bOR\b|\bNOT\b|\bORDER\s+BY\b|\bLIMIT\b|\bGROUP\s+BY\b)|([()])|(\S+)/gi;
+    // Enhanced regex to handle in:[], between:[], and other new operators
+    const regex = /([A-Za-z_][A-Za-z0-9_]*):([><=!~]*)([a-zA-Z_]+)?:?(\[[^\]]+\]|[^:\s()]+|\([^)]+\)|"[^"]*")|(\bAND\b|\bOR\b|\bNOT\b|\bORDER\s+BY\b|\bLIMIT\b|\bGROUP\s+BY\b)|([()])|(\S+)/gi;
 
     let match;
     while ((match = regex.exec(queryString)) !== null) {
-      if (match[1] && match[3]) {
-        // Field query: field:operator:value
+      if (match[1]) {
+        // Field query: field:operator:value or field:value
+        const field = match[1].toLowerCase();
+        let operator = match[2] || '';
+        let operatorName = match[3] ? match[3].toLowerCase() : '';
+        let value = match[4] || match[3];
+
+        // Handle special operators like in:[], between:[], empty, notempty
+        if (operatorName === 'in' || operatorName === 'between') {
+          operator = operatorName;
+          value = match[4];
+        } else if (operatorName === 'empty' || operatorName === 'notempty') {
+          operator = operatorName;
+          value = true;
+        } else if (operatorName && !match[4]) {
+          // Single word after colon (could be a value)
+          value = operatorName;
+          operator = operator || '=';
+        }
+
         tokens.push({
           type: 'FIELD_QUERY',
-          field: match[1].toLowerCase(),
-          operator: match[2] || '=',
-          value: this.parseValue(match[3])
+          field: field,
+          operator: operator || '=',
+          value: this.parseValue(value)
         });
-      } else if (match[4]) {
+      } else if (match[5]) {
         // Logical operators or keywords
-        const keyword = match[4].toUpperCase().replace(/\s+/g, '_');
+        const keyword = match[5].toUpperCase().replace(/\s+/g, '_');
         if (keyword === 'ORDER_BY') {
           tokens.push({ type: 'ORDER_BY' });
         } else if (keyword === 'GROUP_BY') {
@@ -79,12 +100,12 @@ export class QueryParser {
         } else {
           tokens.push({ type: 'LOGIC', operator: keyword });
         }
-      } else if (match[5]) {
-        // Parentheses
-        tokens.push({ type: 'PAREN', value: match[5] });
       } else if (match[6]) {
+        // Parentheses
+        tokens.push({ type: 'PAREN', value: match[6] });
+      } else if (match[7]) {
         // Other tokens
-        tokens.push({ type: 'VALUE', value: match[6] });
+        tokens.push({ type: 'VALUE', value: match[7] });
       }
     }
 
@@ -95,13 +116,31 @@ export class QueryParser {
    * Parse value and handle special formats
    */
   parseValue(valueString) {
+    if (!valueString || valueString === true) {
+      return valueString;
+    }
+
     // Remove quotes
     if ((valueString.startsWith('"') && valueString.endsWith('"')) ||
         (valueString.startsWith("'") && valueString.endsWith("'"))) {
       return valueString.slice(1, -1);
     }
 
-    // Handle arrays in parentheses [item1,item2,item3]
+    // Handle arrays in brackets [item1,item2,item3] for in:[] and between:[]
+    if (valueString.startsWith('[') && valueString.endsWith(']')) {
+      const arrayContent = valueString.slice(1, -1);
+      return arrayContent.split(',').map(item => {
+        const trimmed = item.trim();
+        // Remove quotes if present
+        if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+          return trimmed.slice(1, -1);
+        }
+        return trimmed;
+      });
+    }
+
+    // Handle arrays in parentheses (item1,item2,item3) - legacy support
     if (valueString.startsWith('(') && valueString.endsWith(')')) {
       const arrayContent = valueString.slice(1, -1);
       return arrayContent.split(',').map(item => item.trim());
@@ -190,11 +229,16 @@ export class QueryParser {
    * Parse field query
    */
   parseFieldQuery(query, token) {
-    const { field, operator, value } = token;
+    let { field, operator, value } = token;
+
+    // Resolve field aliases
+    if (FIELD_ALIASES[field]) {
+      field = FIELD_ALIASES[field];
+    }
 
     // Validate field
     if (!VALIDATION_RULES.isValidField(field, this.dataType)) {
-      throw new Error(`Invalid field: ${field}`);
+      throw new Error(`Invalid field '${field}' for type ${this.dataType}. Use queryHelp for valid fields.`);
     }
 
     // Normalize operator
@@ -205,9 +249,11 @@ export class QueryParser {
       throw new Error(`Invalid operator: ${operator}`);
     }
 
-    // Validate value
-    if (!VALIDATION_RULES.isValidValue(field, value, this.dataType)) {
-      console.warn(`Value for field ${field} may be invalid: ${value}`);
+    // Validate value (skip for empty/notempty operators)
+    if (normalizedOperator !== OPERATORS.EMPTY && normalizedOperator !== OPERATORS.NOT_EMPTY) {
+      if (!VALIDATION_RULES.isValidValue(field, value, this.dataType)) {
+        console.warn(`Value for field ${field} may be invalid: ${value}`);
+      }
     }
 
     query.filters.push({
@@ -240,6 +286,16 @@ export class QueryParser {
         return OPERATORS.LESS_EQUAL;
       case '~':
         return OPERATORS.FUZZY;
+      case 'in':
+        return OPERATORS.IN;
+      case 'between':
+        return OPERATORS.BETWEEN;
+      case 'empty':
+        return OPERATORS.EMPTY;
+      case 'notempty':
+        return OPERATORS.NOT_EMPTY;
+      case 'contains':
+        return OPERATORS.CONTAINS;
       default:
         return operator;
     }

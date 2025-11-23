@@ -15,13 +15,18 @@ export const FIELD_TYPES = {
     severity: 'enum',      // Severity
     assignee: 'string',    // Assignee
     reporter: 'string',    // Reporter
+    owner: 'string',       // Creator
     tags: 'array',         // Tags
     created: 'date',       // Created time
     updated: 'date',       // Updated time
-    closed: 'date',        // Closed time
+    closed: 'boolean',     // Is closed
     due_date: 'date',      // Due date
-    ref: 'number',         // Reference number
-    milestone: 'string'    // Milestone/Sprint
+    finish_date: 'date',   // Completion date
+    blocked: 'boolean',    // Is blocked
+    milestone: 'string',   // Milestone/Sprint
+    attachments: 'number', // Number of attachments
+    comments: 'number',    // Number of comments
+    ref: 'number'          // Reference number
   },
 
   // User Story fields
@@ -30,13 +35,21 @@ export const FIELD_TYPES = {
     description: 'string',
     status: 'enum',
     points: 'number',      // Story points
+    priority: 'enum',      // Priority
     assignee: 'string',
-    owner: 'string',       // Owner
+    owner: 'string',       // Owner/Creator
     tags: 'array',
     created: 'date',
     updated: 'date',
-    ref: 'number',
-    milestone: 'string'
+    closed: 'boolean',     // Is closed
+    due_date: 'date',      // Due date
+    finish_date: 'date',   // Completion date
+    blocked: 'boolean',    // Is blocked
+    milestone: 'string',   // Milestone/Sprint
+    epic: 'string',        // Epic
+    attachments: 'number', // Number of attachments
+    comments: 'number',    // Number of comments
+    ref: 'number'
   },
 
   // Task fields
@@ -45,12 +58,30 @@ export const FIELD_TYPES = {
     description: 'string',
     status: 'enum',
     assignee: 'string',
+    owner: 'string',       // Creator
     user_story: 'string',  // Associated user story
     tags: 'array',
     created: 'date',
     updated: 'date',
+    closed: 'boolean',     // Is closed
+    due_date: 'date',      // Due date
+    finish_date: 'date',   // Completion date
+    blocked: 'boolean',    // Is blocked
+    milestone: 'string',   // Milestone/Sprint
+    attachments: 'number', // Number of attachments
+    comments: 'number',    // Number of comments
     ref: 'number'
   }
+};
+
+// Field aliases for more intuitive querying
+export const FIELD_ALIASES = {
+  sprint: 'milestone',
+  assigned: 'assignee',
+  created_by: 'owner',
+  is_blocked: 'blocked',
+  is_closed: 'closed',
+  has_attachments: 'attachments'
 };
 
 // Comparison operators
@@ -67,6 +98,7 @@ export const OPERATORS = {
 
   // Range query
   RANGE: '..',           // Example: points:3..8
+  BETWEEN: 'between',    // Example: created:between:[2025-11-01,2025-11-30]
 
   // String matching
   CONTAINS: 'contains',  // description:contains:"API"
@@ -76,13 +108,14 @@ export const OPERATORS = {
   WILDCARD: '*',        // subject:*login*
 
   // Array operations
-  IN: 'in',             // tags:in:[frontend,backend]
+  IN: 'in',             // tags:in:[frontend,backend] or status:in:[New,In progress]
   NOT_IN: 'not_in',     // tags:not_in:[deprecated]
 
   // Existence checks
   EXISTS: 'exists',     // assignee:exists
   NULL: 'null',         // assignee:null
-  EMPTY: 'empty'        // tags:empty
+  EMPTY: 'empty',       // tags:empty - field is empty/null/undefined
+  NOT_EMPTY: 'notempty' // assignee:notempty - field has a value
 };
 
 // Logical operators
@@ -114,6 +147,15 @@ export const TIME_KEYWORDS = {
   '7d': () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
   '30d': () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
   '90d': () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+};
+
+// Special values for various fields
+export const SPECIAL_VALUES = {
+  milestone: ['active', 'closed', 'null', '*'],
+  due_date: ['past', 'upcoming', 'null'],
+  epic: ['null', '*'],
+  user_story: ['null'],
+  boolean: ['true', 'false']
 };
 
 // Status enum values (based on actual Taiga statuses)
@@ -239,10 +281,12 @@ export const VALIDATION_RULES = {
 
 export default {
   FIELD_TYPES,
+  FIELD_ALIASES,
   OPERATORS,
   LOGIC_OPERATORS,
   SORT_DIRECTIONS,
   TIME_KEYWORDS,
+  SPECIAL_VALUES,
   STATUS_VALUES,
   PRIORITY_VALUES,
   TYPE_VALUES,

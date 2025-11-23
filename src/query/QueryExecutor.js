@@ -3,7 +3,7 @@
  * Query Executor for Advanced Search
  */
 
-import { OPERATORS, TIME_KEYWORDS } from './queryGrammar.js';
+import { OPERATORS, TIME_KEYWORDS, SPECIAL_VALUES } from './queryGrammar.js';
 
 export class QueryExecutor {
   constructor(taigaService) {
@@ -109,6 +109,11 @@ export class QueryExecutor {
     const { field, operator, value } = filter;
     const itemValue = this.getFieldValue(item, field);
 
+    // Handle special field values before comparing
+    if (this.isSpecialFieldValue(field, value)) {
+      return this.evaluateSpecialFieldValue(item, field, value);
+    }
+
     switch (operator) {
       case OPERATORS.EQUAL:
         return this.compareEqual(itemValue, value);
@@ -146,6 +151,9 @@ export class QueryExecutor {
       case OPERATORS.NOT_IN:
         return !this.compareIn(itemValue, value);
 
+      case OPERATORS.BETWEEN:
+        return this.compareBetween(itemValue, value);
+
       case OPERATORS.EXISTS:
         return itemValue !== null && itemValue !== undefined;
 
@@ -154,6 +162,9 @@ export class QueryExecutor {
 
       case OPERATORS.EMPTY:
         return this.isEmpty(itemValue);
+
+      case OPERATORS.NOT_EMPTY:
+        return !this.isEmpty(itemValue);
 
       default:
         console.warn(`Unsupported operator: ${operator}`);
@@ -165,19 +176,200 @@ export class QueryExecutor {
    * Get field value
    */
   getFieldValue(item, field) {
-    // Handle nested field access
-    const fieldPath = field.split('.');
-    let value = item;
+    // Handle special field mappings for Taiga API structure
+    switch (field) {
+      case 'milestone':
+        // Return milestone slug for string matching, or ID for numeric matching
+        // Priority: slug (for names like S47-S48), then ID, then extra_info
+        if (item.milestone_slug) return item.milestone_slug;
+        if (item.milestone_extra_info?.slug) return item.milestone_extra_info.slug;
+        if (item.milestone_extra_info?.name) return item.milestone_extra_info.name;
+        if (item.milestone_id) return item.milestone_id;
+        if (item.milestone) return item.milestone;
+        return null;
 
-    for (const path of fieldPath) {
-      if (value && typeof value === 'object') {
-        value = value[path];
-      } else {
-        return undefined;
-      }
+      case 'epic':
+        // Return epic ID for matching
+        if (item.epic_id) return item.epic_id;
+        if (item.epic_extra_info?.id) return item.epic_extra_info.id;
+        if (item.epic) return item.epic;
+        return null;
+
+      case 'user_story':
+        // For tasks, get the associated user story ID or ref
+        if (item.user_story_id) return item.user_story_id;
+        if (item.user_story_extra_info?.id) return item.user_story_extra_info.id;
+        if (item.user_story) return item.user_story;
+        return null;
+
+      case 'assignee':
+        // Return username for string matching, ID for numeric matching
+        // Priority: username, then ID
+        if (item.assigned_to_extra_info?.username) return item.assigned_to_extra_info.username;
+        if (item.assigned_to_extra_info?.id) return item.assigned_to_extra_info.id;
+        if (item.assigned_to) return item.assigned_to;
+        return null;
+
+      case 'owner':
+        // Return username for string matching, ID for numeric matching
+        if (item.owner_extra_info?.username) return item.owner_extra_info.username;
+        if (item.owner_extra_info?.id) return item.owner_extra_info.id;
+        if (item.owner) return item.owner;
+        return null;
+
+      case 'blocked':
+        return item.is_blocked === true;
+
+      case 'closed':
+        return item.is_closed === true;
+
+      case 'due_date':
+        return item.due_date || null;
+
+      case 'finish_date':
+        return item.finish_date || null;
+
+      case 'attachments':
+        return item.attachments?.length || 0;
+
+      case 'comments':
+        return item.total_comments || 0;
+
+      case 'status':
+        // Return status name for string matching, ID for numeric matching
+        if (item.status_extra_info?.name) return item.status_extra_info.name;
+        if (item.status_extra_info?.id) return item.status_extra_info.id;
+        if (item.status) return item.status;
+        return null;
+
+      case 'priority':
+        // Return priority name for string matching, ID for numeric matching
+        if (item.priority_extra_info?.name) return item.priority_extra_info.name;
+        if (item.priority_extra_info?.id) return item.priority_extra_info.id;
+        if (item.priority) return item.priority;
+        return null;
+
+      case 'created':
+        return item.created_date || null;
+
+      case 'updated':
+        return item.modified_date || null;
+
+      default:
+        // Handle nested field access
+        const fieldPath = field.split('.');
+        let value = item;
+
+        for (const path of fieldPath) {
+          if (value && typeof value === 'object') {
+            value = value[path];
+          } else {
+            return undefined;
+          }
+        }
+
+        return value;
+    }
+  }
+
+  /**
+   * Check if field has special value
+   */
+  isSpecialFieldValue(field, value) {
+    if (typeof value !== 'string') return false;
+
+    const specialValues = SPECIAL_VALUES[field];
+    return specialValues && specialValues.includes(value);
+  }
+
+  /**
+   * Evaluate special field values
+   */
+  evaluateSpecialFieldValue(item, field, value) {
+    const itemValue = this.getFieldValue(item, field);
+
+    switch (field) {
+      case 'milestone':
+        if (value === 'null') return itemValue === null;
+        if (value === '*') return itemValue !== null;
+        if (value === 'active') {
+          // Need to check milestone status - would require API call
+          // For now, treat as having a milestone assigned
+          return itemValue !== null;
+        }
+        if (value === 'closed') {
+          // Need to check milestone status - would require API call
+          return itemValue !== null;
+        }
+        break;
+
+      case 'due_date':
+        if (value === 'null') return itemValue === null;
+        if (value === 'past') {
+          // Due date is in the past AND item is not closed
+          if (!itemValue) return false;
+          const dueDate = this.toDate(itemValue);
+          const isClosed = item.is_closed || false;
+          return dueDate && dueDate < new Date() && !isClosed;
+        }
+        if (value === 'upcoming') {
+          // Due date within the next 7 days
+          if (!itemValue) return false;
+          const dueDate = this.toDate(itemValue);
+          const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          return dueDate && dueDate <= sevenDaysFromNow && dueDate >= new Date();
+        }
+        break;
+
+      case 'epic':
+        if (value === 'null') return itemValue === null;
+        if (value === '*') return itemValue !== null;
+        break;
+
+      case 'user_story':
+        if (value === 'null') return itemValue === null;
+        break;
+
+      case 'blocked':
+      case 'closed':
+        if (value === 'true') return itemValue === true;
+        if (value === 'false') return itemValue === false;
+        break;
     }
 
-    return value;
+    return false;
+  }
+
+  /**
+   * Between comparison (for ranges)
+   */
+  compareBetween(itemValue, queryValue) {
+    if (!Array.isArray(queryValue) || queryValue.length !== 2) {
+      console.warn('BETWEEN operator requires array with 2 values');
+      return false;
+    }
+
+    const [start, end] = queryValue;
+
+    // Numeric comparison
+    const numericItem = this.toNumeric(itemValue);
+    const numericStart = this.toNumeric(start);
+    const numericEnd = this.toNumeric(end);
+
+    if (numericItem !== null && numericStart !== null && numericEnd !== null) {
+      return numericItem >= numericStart && numericItem <= numericEnd;
+    }
+
+    // Date comparison
+    const dateItem = this.toDate(itemValue);
+    const dateStart = this.toDate(start);
+    const dateEnd = this.toDate(end);
+
+    if (dateItem && dateStart && dateEnd) {
+      return dateItem >= dateStart && dateItem <= dateEnd;
+    }
+
+    return false;
   }
 
   /**
@@ -188,9 +380,23 @@ export class QueryExecutor {
       return queryValue === null || queryValue === 'null';
     }
 
+    // Handle numeric comparisons (also handles string numbers)
+    const numericItem = this.toNumeric(itemValue);
+    const numericQuery = this.toNumeric(queryValue);
+    if (numericItem !== null && numericQuery !== null) {
+      return numericItem === numericQuery;
+    }
+
     // String comparison (case-insensitive)
-    if (typeof itemValue === 'string' && typeof queryValue === 'string') {
-      return itemValue.toLowerCase() === queryValue.toLowerCase();
+    if (typeof itemValue === 'string' || typeof queryValue === 'string') {
+      return String(itemValue).toLowerCase() === String(queryValue).toLowerCase();
+    }
+
+    // Boolean comparison
+    if (typeof itemValue === 'boolean') {
+      if (queryValue === 'true') return itemValue === true;
+      if (queryValue === 'false') return itemValue === false;
+      return itemValue === queryValue;
     }
 
     return itemValue === queryValue;
@@ -299,10 +505,21 @@ export class QueryExecutor {
     if (!Array.isArray(queryValue)) return false;
 
     if (Array.isArray(itemValue)) {
-      return itemValue.some(item => queryValue.includes(item));
+      // For arrays (like tags), check if any item value is in the query array
+      return itemValue.some(item =>
+        queryValue.some(qv =>
+          String(item).toLowerCase() === String(qv).toLowerCase()
+        )
+      );
     }
 
-    return queryValue.includes(itemValue);
+    // For single values, check if it matches any query value (case-insensitive)
+    return queryValue.some(qv => {
+      if (itemValue === null || itemValue === undefined) {
+        return qv === 'null' || qv === null;
+      }
+      return String(itemValue).toLowerCase() === String(qv).toLowerCase();
+    });
   }
 
   /**
