@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * HTTP/SSE Server for Taiga MCP Server
+ * HTTP Server for Taiga MCP Server
  *
- * Provides HTTP access to the MCP server using Server-Sent Events (SSE) transport.
+ * Provides HTTP access to the MCP server using standard HTTP POST/Response.
  * Designed for internal network access (e.g., from n8n workflows).
  *
  * Copyright (c) 2024 greddy7574@gmail.com
@@ -11,7 +11,6 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import http from 'http';
 import dotenv from 'dotenv';
 import { TaigaService } from './taigaService.js';
@@ -32,13 +31,18 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 const PORT = process.env.MCP_HTTP_PORT || 3000;
 const HOST = process.env.MCP_HTTP_HOST || '0.0.0.0';
 
-// Global storage for active SSE sessions
-const activeSessions = new Map();
+// Global MCP server instance
+let mcpServerInstance = null;
+let isAuthenticated = false;
 
 /**
  * Create and configure MCP server instance
  */
 function createMcpServer() {
+  if (mcpServerInstance) {
+    return mcpServerInstance;
+  }
+
   const server = new McpServer({
     name: SERVER_INFO.name,
     version: SERVER_INFO.version,
@@ -116,11 +120,38 @@ ${projects.map(p => `- ${p.name} (ID: ${p.id}, Slug: ${p.slug})`).join('\n')}
   // Register all MCP tools from modules
   registerAllTools(server);
 
+  mcpServerInstance = server;
   return server;
 }
 
 /**
- * Create HTTP server with SSE endpoint
+ * Custom HTTP Transport for MCP
+ */
+class HTTPTransport {
+  constructor() {
+    this.onmessage = null;
+    this.onerror = null;
+    this.onclose = null;
+  }
+
+  async start() {
+    console.log('[HTTP Transport] Started');
+  }
+
+  async send(message) {
+    // Store the response to send back
+    this._lastResponse = message;
+  }
+
+  async close() {
+    if (this.onclose) {
+      this.onclose();
+    }
+  }
+}
+
+/**
+ * Create HTTP server
  */
 function createHttpServer() {
   const httpServer = http.createServer(async (req, res) => {
@@ -143,81 +174,92 @@ function createHttpServer() {
         status: 'healthy',
         server: SERVER_INFO.name,
         version: SERVER_INFO.version,
-        transport: 'sse',
-        activeSessions: activeSessions.size,
+        transport: 'http',
+        authenticated: isAuthenticated,
         timestamp: new Date().toISOString()
       }));
       return;
     }
 
-    // SSE endpoint for MCP communication
-    if (req.url === '/sse' && req.method === 'GET') {
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log(`[HTTP] New SSE connection from ${req.socket.remoteAddress} (${sessionId})`);
-
-      const mcpServer = createMcpServer();
-
-      // Pre-authenticate if credentials are available
-      if (process.env.TAIGA_USERNAME && process.env.TAIGA_PASSWORD) {
-        try {
-          await authenticate(process.env.TAIGA_USERNAME, process.env.TAIGA_PASSWORD);
-          console.log(`[HTTP] Pre-authentication successful (${sessionId})`);
-        } catch (error) {
-          console.error(`[HTTP] Pre-authentication failed (${sessionId}):`, error.message);
-        }
-      }
-
-      try {
-        const transport = new SSEServerTransport('/message', res);
-
-        // Store the session
-        activeSessions.set(sessionId, { mcpServer, transport, createdAt: Date.now() });
-        console.log(`[HTTP] Session stored (${sessionId}), total sessions: ${activeSessions.size}`);
-
-        // Connect the MCP server to the transport
-        await mcpServer.connect(transport);
-        console.log(`[HTTP] MCP server connected via SSE (${sessionId})`);
-
-        // Clean up when connection closes
-        req.on('close', () => {
-          activeSessions.delete(sessionId);
-          console.log(`[HTTP] Session closed (${sessionId}), remaining sessions: ${activeSessions.size}`);
-        });
-
-      } catch (error) {
-        console.error(`[HTTP] Error connecting MCP server (${sessionId}):`, error);
-        activeSessions.delete(sessionId);
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: error.message }));
-        }
-      }
-      return;
-    }
-
-    // Handle POST requests to /message endpoint (for SSE client messages)
-    if (req.url === '/message' && req.method === 'POST') {
+    // Main MCP endpoint (HTTP POST)
+    if (req.url === '/mcp' && req.method === 'POST') {
       let body = '';
+
       req.on('data', chunk => {
         body += chunk.toString();
       });
 
       req.on('end', async () => {
         try {
-          const message = JSON.parse(body);
-          console.log('[HTTP] Received POST /message:', JSON.stringify(message).substring(0, 200));
+          const request = JSON.parse(body);
+          console.log('[HTTP] Received MCP request:', request.method || 'unknown method');
 
-          // The SSEServerTransport should handle this internally
-          // We just acknowledge receipt
-          res.writeHead(202, {
+          const server = createMcpServer();
+
+          // Handle different MCP protocol methods
+          let response;
+
+          if (request.method === 'tools/list') {
+            response = await server.listTools();
+          } else if (request.method === 'tools/call') {
+            response = await server.callTool(request.params.name, request.params.arguments);
+          } else if (request.method === 'resources/list') {
+            response = await server.listResources();
+          } else if (request.method === 'resources/read') {
+            response = await server.readResource(request.params.uri);
+          } else if (request.method === 'initialize') {
+            response = {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {},
+                resources: {}
+              },
+              serverInfo: {
+                name: SERVER_INFO.name,
+                version: SERVER_INFO.version
+              }
+            };
+          } else {
+            response = {
+              error: {
+                code: -32601,
+                message: `Method not found: ${request.method}`
+              }
+            };
+          }
+
+          // Send JSON-RPC response
+          const jsonRpcResponse = {
+            jsonrpc: '2.0',
+            id: request.id,
+            result: response
+          };
+
+          res.writeHead(200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
           });
-          res.end(JSON.stringify({ accepted: true }));
+          res.end(JSON.stringify(jsonRpcResponse));
+
+          console.log('[HTTP] Sent response for:', request.method);
+
         } catch (error) {
-          console.error('[HTTP] Error processing POST /message:', error);
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: error.message }));
+          console.error('[HTTP] Error processing request:', error);
+
+          const errorResponse = {
+            jsonrpc: '2.0',
+            id: null,
+            error: {
+              code: -32603,
+              message: error.message
+            }
+          };
+
+          res.writeHead(500, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(JSON.stringify(errorResponse));
         }
       });
       return;
@@ -229,8 +271,7 @@ function createHttpServer() {
       error: 'Not Found',
       availableEndpoints: {
         health: 'GET /health',
-        sse: 'GET /sse',
-        message: 'POST /message'
+        mcp: 'POST /mcp'
       }
     }));
   });
@@ -242,22 +283,32 @@ function createHttpServer() {
  * Start the HTTP server
  */
 async function startServer() {
+  // Pre-authenticate if credentials are available
+  if (process.env.TAIGA_USERNAME && process.env.TAIGA_PASSWORD) {
+    try {
+      await authenticate(process.env.TAIGA_USERNAME, process.env.TAIGA_PASSWORD);
+      isAuthenticated = true;
+      console.log('[HTTP] Pre-authentication successful');
+    } catch (error) {
+      console.error('[HTTP] Pre-authentication failed:', error.message);
+    }
+  }
+
   const httpServer = createHttpServer();
 
   httpServer.listen(PORT, HOST, () => {
     console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║         Taiga MCP Server - HTTP/SSE Mode                   ║
+║         Taiga MCP Server - HTTP Mode                       ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Server:    ${SERVER_INFO.name.padEnd(45)} ║
 ║  Version:   ${SERVER_INFO.version.padEnd(45)} ║
-║  Transport: SSE (Server-Sent Events)                       ║
+║  Transport: HTTP (POST/Response)                           ║
 ║  Listen:    http://${HOST}:${PORT}${' '.repeat(Math.max(0, 30 - HOST.length - PORT.toString().length))} ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Endpoints:                                                ║
 ║    - GET  /health    Health check                          ║
-║    - GET  /sse       MCP SSE connection                    ║
-║    - POST /message   MCP message endpoint                  ║
+║    - POST /mcp       MCP protocol endpoint                 ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Taiga API: ${(process.env.TAIGA_API_URL || 'https://api.taiga.io/api/v1').padEnd(43)} ║
 ║  Auth:      ${(process.env.TAIGA_USERNAME ? '✓ Configured' : '✗ Not configured').padEnd(43)} ║
@@ -281,19 +332,6 @@ async function startServer() {
       process.exit(0);
     });
   });
-
-  // Cleanup old sessions every 5 minutes
-  setInterval(() => {
-    const now = Date.now();
-    const maxAge = 5 * 60 * 1000; // 5 minutes
-
-    for (const [sessionId, session] of activeSessions.entries()) {
-      if (now - session.createdAt > maxAge) {
-        console.log(`[HTTP] Cleaning up stale session: ${sessionId}`);
-        activeSessions.delete(sessionId);
-      }
-    }
-  }, 60 * 1000); // Check every minute
 }
 
 // Start server
