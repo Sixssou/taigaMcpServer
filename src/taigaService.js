@@ -138,6 +138,42 @@ export class TaigaService {
   }
 
   /**
+   * List user stories filtered by milestone (sprint)
+   * @param {string} projectId - Project ID
+   * @param {string} milestoneId - Milestone ID
+   * @returns {Promise<Array>} - List of user stories in the milestone
+   */
+  async getUserStoriesByMilestone(projectId, milestoneId) {
+    try {
+      const client = await createAuthenticatedClient();
+      return await this.fetchAllPages(client, API_ENDPOINTS.USER_STORIES, {
+        project: projectId,
+        milestone: milestoneId
+      });
+    } catch (error) {
+      console.error(`Failed to get user stories for milestone ${milestoneId}:`, error.message);
+      throw new Error('Failed to get user stories by milestone from Taiga');
+    }
+  }
+
+  /**
+   * List tasks filtered by user story
+   * @param {string} userStoryId - User Story ID
+   * @returns {Promise<Array>} - List of tasks for the user story
+   */
+  async getTasksByUserStory(userStoryId) {
+    try {
+      const client = await createAuthenticatedClient();
+      return await this.fetchAllPages(client, API_ENDPOINTS.TASKS, {
+        user_story: userStoryId
+      });
+    } catch (error) {
+      console.error(`Failed to get tasks for user story ${userStoryId}:`, error.message);
+      throw new Error('Failed to get tasks by user story from Taiga');
+    }
+  }
+
+  /**
    * Create a new user story in a project
    * @param {Object} userStoryData - User story data
    * @param {string} userStoryData.project - Project ID
