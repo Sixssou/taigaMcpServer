@@ -203,11 +203,52 @@ function createHttpServer() {
             // Return list of all available tools
             const allTools = getAllTools();
             response = {
-              tools: allTools.map(tool => ({
-                name: tool.name,
-                description: tool.description || '',
-                inputSchema: tool.schema || {}
-              }))
+              tools: allTools.map(tool => {
+                // Convert Zod schema to JSON Schema format
+                let inputSchema = { type: 'object', properties: {} };
+
+                if (tool.schema && typeof tool.schema === 'object') {
+                  const properties = {};
+
+                  // Extract properties from Zod schema
+                  for (const [key, value] of Object.entries(tool.schema)) {
+                    if (value && value._def) {
+                      // It's a Zod object, extract basic type info
+                      const zodType = value._def.typeName;
+                      let propSchema = { type: 'string' }; // default
+
+                      if (zodType === 'ZodString' || zodType?.includes('String')) {
+                        propSchema = { type: 'string' };
+                      } else if (zodType === 'ZodNumber' || zodType?.includes('Number')) {
+                        propSchema = { type: 'number' };
+                      } else if (zodType === 'ZodBoolean' || zodType?.includes('Boolean')) {
+                        propSchema = { type: 'boolean' };
+                      } else if (zodType === 'ZodArray' || zodType?.includes('Array')) {
+                        propSchema = { type: 'array' };
+                      } else if (zodType === 'ZodObject' || zodType?.includes('Object')) {
+                        propSchema = { type: 'object' };
+                      }
+
+                      // Add description if available
+                      if (value._def.description) {
+                        propSchema.description = value._def.description;
+                      }
+
+                      properties[key] = propSchema;
+                    }
+                  }
+
+                  if (Object.keys(properties).length > 0) {
+                    inputSchema.properties = properties;
+                  }
+                }
+
+                return {
+                  name: tool.name,
+                  description: tool.description || '',
+                  inputSchema: inputSchema
+                };
+              })
             };
           } else if (request.method === 'tools/call') {
             // Call a specific tool
