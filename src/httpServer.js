@@ -32,6 +32,9 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 const PORT = process.env.MCP_HTTP_PORT || 3000;
 const HOST = process.env.MCP_HTTP_HOST || '0.0.0.0';
 
+// Global storage for active SSE sessions
+const activeSessions = new Map();
+
 /**
  * Create and configure MCP server instance
  */
@@ -141,6 +144,7 @@ function createHttpServer() {
         server: SERVER_INFO.name,
         version: SERVER_INFO.version,
         transport: 'sse',
+        activeSessions: activeSessions.size,
         timestamp: new Date().toISOString()
       }));
       return;
@@ -148,7 +152,8 @@ function createHttpServer() {
 
     // SSE endpoint for MCP communication
     if (req.url === '/sse' && req.method === 'GET') {
-      console.log(`[HTTP] New SSE connection from ${req.socket.remoteAddress}`);
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`[HTTP] New SSE connection from ${req.socket.remoteAddress} (${sessionId})`);
 
       const mcpServer = createMcpServer();
 
@@ -156,18 +161,32 @@ function createHttpServer() {
       if (process.env.TAIGA_USERNAME && process.env.TAIGA_PASSWORD) {
         try {
           await authenticate(process.env.TAIGA_USERNAME, process.env.TAIGA_PASSWORD);
-          console.log('[HTTP] Pre-authentication successful');
+          console.log(`[HTTP] Pre-authentication successful (${sessionId})`);
         } catch (error) {
-          console.error('[HTTP] Pre-authentication failed:', error.message);
+          console.error(`[HTTP] Pre-authentication failed (${sessionId}):`, error.message);
         }
       }
 
       try {
         const transport = new SSEServerTransport('/message', res);
+
+        // Store the session
+        activeSessions.set(sessionId, { mcpServer, transport, createdAt: Date.now() });
+        console.log(`[HTTP] Session stored (${sessionId}), total sessions: ${activeSessions.size}`);
+
+        // Connect the MCP server to the transport
         await mcpServer.connect(transport);
-        console.log('[HTTP] MCP server connected via SSE');
+        console.log(`[HTTP] MCP server connected via SSE (${sessionId})`);
+
+        // Clean up when connection closes
+        req.on('close', () => {
+          activeSessions.delete(sessionId);
+          console.log(`[HTTP] Session closed (${sessionId}), remaining sessions: ${activeSessions.size}`);
+        });
+
       } catch (error) {
-        console.error('[HTTP] Error connecting MCP server:', error);
+        console.error(`[HTTP] Error connecting MCP server (${sessionId}):`, error);
+        activeSessions.delete(sessionId);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: error.message }));
@@ -186,9 +205,9 @@ function createHttpServer() {
       req.on('end', async () => {
         try {
           const message = JSON.parse(body);
-          console.log('[HTTP] Received message from client:', JSON.stringify(message).substring(0, 200));
+          console.log('[HTTP] Received POST /message:', JSON.stringify(message).substring(0, 200));
 
-          // SSEServerTransport handles the message internally
+          // The SSEServerTransport should handle this internally
           // We just acknowledge receipt
           res.writeHead(202, {
             'Content-Type': 'application/json',
@@ -196,7 +215,7 @@ function createHttpServer() {
           });
           res.end(JSON.stringify({ accepted: true }));
         } catch (error) {
-          console.error('[HTTP] Error processing message:', error);
+          console.error('[HTTP] Error processing POST /message:', error);
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: error.message }));
         }
@@ -262,6 +281,19 @@ async function startServer() {
       process.exit(0);
     });
   });
+
+  // Cleanup old sessions every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    const maxAge = 5 * 60 * 1000; // 5 minutes
+
+    for (const [sessionId, session] of activeSessions.entries()) {
+      if (now - session.createdAt > maxAge) {
+        console.log(`[HTTP] Cleaning up stale session: ${sessionId}`);
+        activeSessions.delete(sessionId);
+      }
+    }
+  }, 60 * 1000); // Check every minute
 }
 
 // Start server
