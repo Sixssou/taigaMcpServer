@@ -1,4 +1,4 @@
-# Forked for addtionnal functionnalities and and tools for non-batch User-Story management.
+# Forked for additional functionalities and tools for non-batch User-Story management.
 
 # 🚀 Taiga MCP Server
 
@@ -80,7 +80,7 @@ A powerful **Model Context Protocol (MCP)** server that enables natural language
 - **Node.js** (v14 or higher) - [Download here](https://nodejs.org)
 - **Taiga account** with API access
 
-### Option 1: NPX (Recommended)
+### Option 1: NPX (Recommended for CLI/Desktop)
 No installation required - runs latest version automatically:
 
 ```bash
@@ -101,7 +101,7 @@ taiga-mcp
 npm install -g @greddy7574/taiga-mcp-server
 ```
 
-### Option 3: Docker Deployment
+### Option 3: Docker Deployment (Recommended for n8n/HTTP)
 ```bash
 # Build the image
 docker build -t taiga-mcp-server .
@@ -116,13 +116,13 @@ docker run --rm -i \
   -e TAIGA_PASSWORD=your_password \
   taiga-mcp-server
 
-# Using docker-compose
+# Using docker-compose (see section below)
 docker-compose up --build
 ```
 
 ## ⚙️ Configuration
 
-### Claude Desktop Integration
+### For Claude Desktop (stdio mode)
 
 #### NPX Method (Recommended)
 Add to your Claude Desktop `config.json`:
@@ -150,8 +150,8 @@ Add to your Claude Desktop `config.json`:
     "taiga-mcp": {
       "command": "docker",
       "args": [
-        "run", 
-        "--rm", 
+        "run",
+        "--rm",
         "-i",
         "-e", "TAIGA_API_URL=https://api.taiga.io/api/v1",
         "-e", "TAIGA_USERNAME=your_username",
@@ -163,21 +163,172 @@ Add to your Claude Desktop `config.json`:
 }
 ```
 
-#### Docker Compose Method
+### For n8n/HTTP Integration (HTTP mode)
+
+#### Architecture
+```
+┌─────────────────────────────────────────┐
+│         VPS (Docker Network)            │
+│                                         │
+│  ┌──────────────┐    ┌──────────────┐ │
+│  │     n8n      │───►│ taigaMcp     │ │
+│  │  Container   │HTTP│   Server     │ │
+│  │              │    │  Port 3000   │ │
+│  └──────────────┘    └──────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+#### Step 1: Environment Configuration
+
+Create a `.env` file in your project root:
+
+```env
+# Taiga API Configuration
+TAIGA_API_URL=https://api.taiga.io/api/v1
+TAIGA_USERNAME=your_username
+TAIGA_PASSWORD=your_password
+
+# HTTP Server Configuration
+MCP_HTTP_PORT=3000
+MCP_HTTP_HOST=0.0.0.0
+
+# Optional: For Traefik HTTPS exposure
+TAIGA_MCP_SUBDOMAIN=taiga-mcp
+DOMAIN_NAME=yourdomain.com
+```
+
+#### Step 2: Add to Docker Compose
+
+Add this service to your `docker-compose.yml`:
+
+```yaml
+services:
+  # Taiga MCP Server - HTTP mode for n8n integration
+  taiga-mcp-http:
+    build:
+      context: ./taigaMcpServer
+      dockerfile: Dockerfile
+      target: production
+    image: taiga-mcp-server:latest
+    container_name: taiga-mcp-http
+    restart: unless-stopped
+    command: ["node", "src/httpServer.js"]
+
+    environment:
+      - NODE_ENV=production
+      - TAIGA_API_URL=${TAIGA_API_URL:-https://api.taiga.io/api/v1}
+      - TAIGA_USERNAME=${TAIGA_USERNAME}
+      - TAIGA_PASSWORD=${TAIGA_PASSWORD}
+      - MCP_HTTP_PORT=3000
+      - MCP_HTTP_HOST=0.0.0.0
+
+    env_file:
+      - .env
+
+    # Internal access only (remove if you need external access)
+    expose:
+      - "3000"
+
+    # Or publish port for testing (comment out 'expose' above)
+    # ports:
+    #   - "3000:3000"
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+```
+
+#### Step 3: Optional - Traefik HTTPS Exposure
+
+To expose the MCP server via HTTPS with Traefik, add these labels:
+
+```yaml
+  taiga-mcp-http:
+    # ... previous configuration ...
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.taiga-mcp.rule=Host(`${TAIGA_MCP_SUBDOMAIN}.${DOMAIN_NAME}`)
+      - traefik.http.routers.taiga-mcp.tls=true
+      - traefik.http.routers.taiga-mcp.entrypoints=web,websecure
+      - traefik.http.routers.taiga-mcp.tls.certresolver=mytlschallenge
+      - traefik.http.services.taiga-mcp.loadbalancer.server.port=3000
+```
+
+Your server will then be accessible at `https://taiga-mcp.yourdomain.com`
+
+#### Step 4: Deploy
+
+```bash
+# Build and start the server
+docker-compose build taiga-mcp-http
+docker-compose up -d taiga-mcp-http
+
+# Check logs
+docker-compose logs -f taiga-mcp-http
+
+# Test health endpoint
+curl http://localhost:3000/health
+```
+
+Expected response:
 ```json
 {
-  "mcpServers": {
-    "taiga-mcp": {
-      "command": "docker-compose",
-      "args": [
-        "-f", "/path/to/project/docker-compose.yml",
-        "run", "--rm", "taiga-mcp-server"
-      ],
-      "cwd": "/path/to/project"
-    }
-  }
+  "status": "healthy",
+  "server": "Taiga MCP",
+  "version": "1.9.14",
+  "transport": "http",
+  "timestamp": "2024-11-21T10:00:00.000Z"
 }
 ```
+
+#### Step 5: Configure n8n
+
+In your n8n workflow, add an **MCP TAIGA API** node with these settings:
+
+| Parameter | Value |
+|-----------|-------|
+| **Endpoint** | `http://taiga-mcp-http:3000/mcp` |
+| **Server Transport** | `HTTP Streamable` |
+| **Authentication** | None (internal network) |
+| **Timeout** | `60000` |
+
+**URLs by access type:**
+- **Internal (from n8n)**: `http://taiga-mcp-http:3000/mcp`
+- **External (with Traefik)**: `https://taiga-mcp.yourdomain.com/mcp`
+- **Host (localhost)**: `http://localhost:3000/mcp`
+
+#### Troubleshooting
+
+**Container unhealthy or not responding:**
+```bash
+# Check container status
+docker ps | grep taiga-mcp-http
+
+# Check logs for errors
+docker logs taiga-mcp-http
+
+# Verify network
+docker inspect taiga-mcp-http | grep NetworkMode
+
+# Test from n8n container
+docker exec -it n8n wget -qO- http://taiga-mcp-http:3000/health
+```
+
+**n8n cannot connect:**
+1. Ensure both containers are on the same Docker network
+2. Check firewall rules
+3. Verify environment variables are loaded
+4. Test health endpoint accessibility
 
 ### Custom Taiga Instance
 For self-hosted Taiga instances:
@@ -199,7 +350,7 @@ For self-hosted Taiga instances:
 🗣️ "Show me all sprints in project MyApp"
 📊 Returns: List of sprints with status and dates
 
-🗣️ "Get detailed statistics for Sprint 5"  
+🗣️ "Get detailed statistics for Sprint 5"
 📈 Returns: Progress stats, completion rates, user stories count
 
 🗣️ "Create a new sprint called 'Q1 Release' from 2024-01-01 to 2024-03-31"
@@ -222,258 +373,117 @@ For self-hosted Taiga instances:
 
 🗣️ "Add issue 838 to Sprint 1.0.95"
 🏃 Returns: Issue moved to sprint with confirmation
-
-🗣️ "Remove issue 838 from sprint"
-🏃 Returns: Issue removed from sprint assignment
-
-🗣️ "What issues are in Sprint 3?"
-📋 Returns: All issues assigned to that sprint
 ```
 
-### Project Management
-```
-🗣️ "Create a high-priority bug issue: 'Login page not working'"
-🐛 Returns: Created issue with details
-
-🗣️ "List all user stories in project MyApp"
-📝 Returns: User stories with status and assignments
-
-🗣️ "Create these 5 issues in batch: Bug1, Bug2, Feature1, Task1, Task2"
-🚀 Returns: Batch creation results with individual success/failure status
-```
-
-### Batch Operations Examples
+### Batch Operations
 ```
 🗣️ "Batch create these issues in MyApp:
 - Bug: Login page broken (High priority)
-- Feature: Add search functionality (Medium priority) 
+- Feature: Add search functionality (Medium priority)
 - Task: Update documentation (Low priority)"
 📊 Returns: Created 3/3 issues successfully with reference numbers
-
-🗣️ "Batch create user stories:
-- User registration flow (5 points)
-- Password reset feature (3 points)
-- Email notifications (2 points)"
-📋 Returns: Created 3/3 user stories with story point assignments
 ```
 
-### Advanced Query Examples
+### Advanced Queries
 ```
 🗣️ "Find all high priority bugs assigned to john: status:open AND priority:high AND assignee:john AND type:bug"
 📊 Returns: Filtered list of critical bugs needing attention
 
 🗣️ "Show user stories with 5+ points created this week: points:>=5 AND created:this_week ORDER BY points DESC"
 📈 Returns: High-value stories with detailed point breakdown
-
-🗣️ "Search for API-related tasks: subject:contains:\"API\" OR description:contains:\"API\" LIMIT 10"
-🔍 Returns: All tasks mentioning API with relevance ranking
 ```
 
-### Comment System Examples
-```
-🗣️ "Add comment to issue #123: 'This needs more testing before deployment'"
-💬 Returns: Comment added successfully with timestamp and user info
-
-🗣️ "Show me all comments for user story #456"
-📝 Returns: Complete comment history with user names and dates
-
-🗣️ "Edit comment #789 to say 'Updated implementation approach'"
-✏️ Returns: Comment updated successfully with new content
-
-🗣️ "Delete comment #321"
-🗑️ Returns: Comment removed from the discussion thread
-```
-
-### File Attachment Examples
-```
-🗣️ "Upload design.pdf to user story #456 with description 'UI mockup v2'"
-📎 Returns: File uploaded successfully with size and metadata
-
-🗣️ "Upload screenshot.png to issue #123 in project MyApp"
-📸 Returns: Image file attached with automatic MIME type detection
-
-🗣️ "List all attachments for issue #789"
-📂 Returns: Complete attachment list with filenames, sizes, and upload dates
-
-🗣️ "Download attachment #123 to /Downloads/documents/"
-⬇️ Returns: File downloaded successfully to specified location
-
-🗣️ "Delete attachment #456"
-🗑️ Returns: Attachment removed from the project
-```
-
-### File Upload Methods
-The system supports two upload methods optimized for different use cases:
-
-**Method 1: File Path (Recommended for Claude Desktop)**
-```json
-{
-  "itemType": "issue",
-  "itemId": 123,
-  "projectIdentifier": "MyApp",
-  "filePath": "design.pdf",
-  "description": "UI mockup v2"
-}
-```
-
-**Method 2: Base64 Data (For programmatic use)**
-```json
-{
-  "itemType": "issue", 
-  "itemId": 123,
-  "projectIdentifier": "MyApp",
-  "fileData": "base64_encoded_file_content",
-  "fileName": "design.pdf",
-  "mimeType": "application/pdf",
-  "description": "UI mockup v2"
-}
-```
-
-### Epic Management Examples
-```
-🗣️ "Create epic 'API v2.0 Migration' in project MyApp with description 'Complete API redesign'"
-🏛️ Returns: Epic created with ID, color, and project association
-
-🗣️ "List all epics in project MyApp"
-📋 Returns: Epic list with progress stats and linked user stories count
-
-🗣️ "Get details for epic #789"
-📊 Returns: Epic overview with progress, status, and linked user stories
-
-🗣️ "Link user story #456 to epic #789"
-🔗 Returns: Story successfully linked to epic for better organization
-
-🗣️ "Update epic #789 status to 'In Progress' and add tag 'backend'"
-✏️ Returns: Epic updated with new status and organizational tags
-```
-
-### Wiki Management Examples
-```
-🗣️ "Create wiki page 'api-documentation' in project MyApp with content about API usage"
-📖 Returns: Wiki page created with slug, project association, and content preview
-
-🗣️ "List all wiki pages in project MyApp"
-📋 Returns: Complete wiki page list with modification dates and content summaries
-
-🗣️ "Get wiki page 'user-guide' details from project MyApp"
-🔍 Returns: Full wiki content, metadata, watchers, and version information
-
-🗣️ "Update wiki page 'installation-guide' with new Docker instructions"
-✏️ Returns: Wiki page updated with new content and incremented version
-
-🗣️ "Watch wiki page 'api-documentation' for change notifications"
-👁️ Returns: Successfully subscribed to wiki page change notifications
-
-🗣️ "Delete wiki page 'outdated-info' from project MyApp"
-🗑️ Returns: Wiki page permanently deleted with confirmation details
-```
-
-## 🔧 Available Tools (42 Total)
+## 🔧 Available Tools (50 Total)
 
 ### 🔐 Authentication (1 tool)
-| Tool | Description |
-|------|-------------|
-| `authenticate` | Authenticate with Taiga API |
+- `authenticate` - Authenticate with Taiga API
 
 ### 📁 Project Management (2 tools)
-| Tool | Description |
-|------|-------------|
-| `listProjects` | Get all accessible projects |
-| `getProject` | View detailed project information |
+- `listProjects` - Get all accessible projects
+- `getProject` - View detailed project information
 
-### 🏃 Sprint Management (4 tools)
-| Tool | Description |
-|------|-------------|
-| `listMilestones` | List all sprints in a project |
-| `getMilestoneStats` | Get sprint progress and statistics |
-| `createMilestone` | Create new sprints with dates |
-| `getIssuesByMilestone` | View all issues in a sprint |
+### 🏃 Sprint Management (6 tools)
+- `listMilestones` - List all sprints in a project
+- `getMilestoneStats` - Get sprint progress and statistics
+- `createMilestone` - Create new sprints with dates
+- `getIssuesByMilestone` - View all issues in a sprint
+- `updateSprint` - Update sprint information
+- `deleteSprint` - Delete a sprint
 
 ### 🐛 Issue Management (6 tools)
-| Tool | Description |
-|------|-------------|
-| `listIssues` | List issues with sprint info |
-| `getIssue` | Get detailed issue information |
-| `createIssue` | Create issues with priorities/types |
-| `updateIssueStatus` | Update issue status (e.g., "In Progress", "Done") |
-| `addIssueToSprint` | Assign issues to sprints or remove from sprints |
-| `assignIssue` | Assign issues to team members or unassign |
+- `listIssues` - List issues with sprint info
+- `getIssue` - Get detailed issue information
+- `createIssue` - Create issues with priorities/types
+- `updateIssueStatus` - Update issue status
+- `addIssueToSprint` - Assign/remove issues to/from sprints
+- `assignIssue` - Assign/unassign issues to team members
 
-### 📝 User Story Management (2 tools)
-| Tool | Description |
-|------|-------------|
-| `listUserStories` | View user stories in a project |
-| `createUserStory` | Create new user stories |
+### 📝 User Story Management (6 tools)
+- `listUserStories` - View user stories in a project
+- `createUserStory` - Create new user stories
+- `getUserStory` - Get user story details
+- `updateUserStory` - Update user story properties
+- `deleteUserStory` - Delete user stories
+- `addUserStoryToSprint` - Add/remove user stories to/from sprints
 
-### ✅ Task Management (1 tool)
-| Tool | Description |
-|------|-------------|
-| `createTask` | Create tasks linked to user stories |
+### ✅ Task Management (3 tools)
+- `createTask` - Create tasks linked to user stories
+- `getTask` - Get task details
+- `updateTask` - Update task properties
 
 ### 🚀 Batch Operations (3 tools)
-| Tool | Description |
-|------|-------------|
-| `batchCreateIssues` | Batch create multiple issues (up to 20) |
-| `batchCreateUserStories` | Batch create multiple user stories |
-| `batchCreateTasks` | Batch create multiple tasks for a user story |
+- `batchCreateIssues` - Batch create multiple issues (up to 20)
+- `batchCreateUserStories` - Batch create multiple user stories
+- `batchCreateTasks` - Batch create multiple tasks
 
 ### 🔍 Advanced Search (3 tools)
-| Tool | Description |
-|------|-------------|
-| `advancedSearch` | Execute advanced SQL-like queries |
-| `queryHelp` | Get query syntax help and examples |
-| `validateQuery` | Validate query syntax before execution |
+- `advancedSearch` - Execute advanced SQL-like queries
+- `queryHelp` - Get query syntax help and examples
+- `validateQuery` - Validate query syntax before execution
 
 ### 💬 Comment System (4 tools)
-| Tool | Description |
-|------|-------------|
-| `addComment` | Add comments to issues, stories, or tasks |
-| `listComments` | View comment history for items |
-| `editComment` | Edit existing comments |
-| `deleteComment` | Delete comments |
+- `addComment` - Add comments to issues, stories, or tasks
+- `listComments` - View comment history for items
+- `editComment` - Edit existing comments
+- `deleteComment` - Delete comments
 
 ### 📎 File Attachments (4 tools)
-| Tool | Description | Key Features |
-|------|-------------|--------------|
-| `uploadAttachment` | Upload files to issues, stories, or tasks | Dual method support (file path/Base64), smart path resolution |
-| `listAttachments` | View attachment list for items | Complete metadata with file sizes and upload dates |
-| `downloadAttachment` | Download attachments by ID | Flexible download path management |
-| `deleteAttachment` | Delete attachments | Safe deletion with confirmation |
+- `uploadAttachment` - Upload files (Base64 or file path)
+- `listAttachments` - View attachment list
+- `downloadAttachment` - Download attachments
+- `deleteAttachment` - Delete attachments
 
 ### 🏛️ Epic Management (6 tools)
-| Tool | Description |
-|------|-------------|
-| `createEpic` | Create large-scale Epic features |
-| `listEpics` | List all Epics in a project |
-| `getEpic` | Get Epic details and progress stats |
-| `updateEpic` | Update Epic information and status |
-| `linkStoryToEpic` | Link User Stories to Epics |
-| `unlinkStoryFromEpic` | Remove Story-Epic associations |
+- `createEpic` - Create large-scale Epic features
+- `listEpics` - List all Epics in a project
+- `getEpic` - Get Epic details and progress stats
+- `updateEpic` - Update Epic information and status
+- `linkStoryToEpic` - Link User Stories to Epics
+- `unlinkStoryFromEpic` - Remove Story-Epic associations
 
 ### 📖 Wiki Management (6 tools)
-| Tool | Description |
-|------|-------------|
-| `createWikiPage` | Create project Wiki pages with Markdown support |
-| `listWikiPages` | List all Wiki pages in a project |
-| `getWikiPage` | Get Wiki page details by ID or slug |
-| `updateWikiPage` | Update Wiki page content and settings |
-| `deleteWikiPage` | Delete Wiki pages (irreversible) |
-| `watchWikiPage` | Watch/unwatch Wiki pages for notifications |
+- `createWikiPage` - Create project Wiki pages
+- `listWikiPages` - List all Wiki pages
+- `getWikiPage` - Get Wiki page details
+- `updateWikiPage` - Update Wiki page content
+- `deleteWikiPage` - Delete Wiki pages
+- `watchWikiPage` - Watch/unwatch Wiki pages
 
 ## 🚀 Why Choose Taiga MCP Server?
 
 - **🔥 Zero Setup**: Works immediately with npx
 - **🧠 AI-Native**: Built specifically for conversational project management
-- **🔗 Complete Integration**: Full Taiga API coverage with 39 tools
+- **🔗 Complete Integration**: Full Taiga API coverage with 50 tools
 - **📊 Rich Data**: Detailed progress tracking and statistics
-- **🎯 Sprint-Focused**: Advanced sprint-issue relationship tracking  
+- **🎯 Sprint-Focused**: Advanced sprint-issue relationship tracking
 - **🛡️ Secure**: Environment-based credential management
 - **🚀 Batch Operations**: Efficient bulk operations for large projects
-- **💬 Team Collaboration**: Complete comment system for enhanced communication  
-- **📎 File Management**: Dual upload methods (file path/Base64) with Claude Desktop optimization
-- **🏛️ Enterprise-Ready**: Epic management for large-scale project organization
-- **📖 Knowledge Management**: Complete Wiki system for project documentation
-- **🔍 Advanced Search**: SQL-like query syntax for complex data filtering
+- **💬 Team Collaboration**: Complete comment system
+- **📎 File Management**: Dual upload methods (file path/Base64)
+- **🏛️ Enterprise-Ready**: Epic management for large-scale projects
+- **📖 Knowledge Management**: Complete Wiki system
+- **🔍 Advanced Search**: SQL-like query syntax
+- **🌐 Flexible Deployment**: CLI, Docker, and HTTP modes
 
 ## 🙏 Acknowledgments
 
@@ -487,22 +497,21 @@ This project was **inspired by** [mcpTAIGA](https://github.com/adriapedralbes/mc
 From the original basic concept, this version expanded to include:
 
 - **Complete Architectural Redesign**: Professional modular tool system (v1.5.0+)
-- **33 MCP Tools**: From basic functionality to enterprise-grade project management
+- **50 MCP Tools**: From basic functionality to enterprise-grade project management
 - **Advanced Sprint Management**: Complete milestone tracking with detailed statistics
-- **Enhanced Issue Management**: Full issue lifecycle with sprint associations  
+- **Enhanced Issue Management**: Full issue lifecycle with sprint associations
 - **Batch Operations**: Efficient bulk creation for large-scale projects (v1.6.0)
 - **Advanced Query System**: SQL-like syntax for complex data filtering (v1.6.1)
 - **Team Collaboration**: Complete comment system for enhanced communication (v1.7.0)
 - **File Management**: Full attachment lifecycle with multi-format support (v1.7.1)
 - **Epic Management**: Enterprise-grade large-scale project organization (v1.8.0)
+- **HTTP Transport**: n8n integration and HTTP/SSE mode (v1.9.0)
 - **Professional Code Quality**: Error handling, formatting, comprehensive testing
-- **Comprehensive Documentation**: Professional guides and examples in 3 languages
+- **Comprehensive Documentation**: Professional guides and examples
 - **Automated CI/CD**: Dual registry publishing with complete automation
 
-**Original concept**: Basic Taiga MCP connectivity  
-**This implementation**: Full-featured Taiga project management suite with entirely new architecture
-
-This reimplementation acknowledges the foundational concept while showcasing the collaborative potential of AI-assisted software development.
+**Original concept**: Basic Taiga MCP connectivity
+**This implementation**: Full-featured Taiga project management suite with HTTP/CLI support
 
 ## 📚 Documentation
 
@@ -516,25 +525,6 @@ Our documentation is available in three languages:
 - **🇨🇳 [简体中文](https://github.com/greddy7574/taigaMcpServer/wiki/Home.zh-CN)** - 完整的简体中文文档
 - **🇹🇼 [繁體中文](https://github.com/greddy7574/taigaMcpServer/wiki/Home.zh-TW)** - 完整的繁體中文文件
 
-### 🎯 Quick Navigation
-
-| Section | English                                                                               | 简体中文                                                                              | 繁體中文                                                                            |
-|---------|---------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| **Getting Started** | [Installation Guide](https://github.com/greddy7574/taigaMcpServer/wiki/Installation.en) | [安装指南](https://github.com/greddy7574/taigaMcpServer/wiki/Installation.zh-CN)      | [安裝指南](https://github.com/greddy7574/taigaMcpServer/wiki/Installation.zh-TW)    |
-| **API Reference** | [API Reference](https://github.com/greddy7574/taigaMcpServer/wiki/API-Reference.en)   | [API 参考](https://github.com/greddy7574/taigaMcpServer/wiki/API-Reference.zh-CN)   | [API 參考](https://github.com/greddy7574/taigaMcpServer/wiki/API-Reference.zh-TW) |
-| **Architecture** | [Architecture](https://github.com/greddy7574/taigaMcpServer/wiki/ARCHITECTURE.en)   | [架构概览](https://github.com/greddy7574/taigaMcpServer/wiki/ARCHITECTURE.zh-CN) | [架構概覽](https://github.com/greddy7574/taigaMcpServer/wiki/ARCHITECTURE.zh-TW)    |
-| **CI/CD Guide** | [CI/CD Guide](https://github.com/greddy7574/taigaMcpServer/wiki/CICD.en)            | [CI/CD 指南](https://github.com/greddy7574/taigaMcpServer/wiki/CICD.zh-CN)          | [CI/CD 指南](https://github.com/greddy7574/taigaMcpServer/wiki/CICD.zh-TW)        |
-
-### 👩‍💻 Developer Resources
-
-| Topic | English                                                                             | 简体中文                                                                       | 繁體中文                                                                       |
-|-------|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------|----------------------------------------------------------------------------|
-| **Design Document** | [Design](https://github.com/greddy7574/taigaMcpServer/wiki/DESIGN.en)               | [设计文档](https://github.com/greddy7574/taigaMcpServer/wiki/DESIGN.zh-CN)     | [設計文件](https://github.com/greddy7574/taigaMcpServer/wiki/DESIGN.zh-TW)     |
-| **First Steps** | [First Steps](https://github.com/greddy7574/taigaMcpServer/wiki/First-Steps.en)     | [第一步](https://github.com/greddy7574/taigaMcpServer/wiki/First-Steps.zh-CN) | [第一步](https://github.com/greddy7574/taigaMcpServer/wiki/First-Steps.zh-TW) |
-| **Configuration** | [Configuration](https://github.com/greddy7574/taigaMcpServer/wiki/Configuration.en) | [配置说明](https://github.com/greddy7574/taigaMcpServer/wiki/Configuration.zh-CN)   | [設定說明](https://github.com/greddy7574/taigaMcpServer/wiki/Configuration.zh-TW)   |
-
-> 💡 **Tip**: The Wiki provides better search, navigation, and mobile experience!
-
 ## 🚀 Automated Publishing
 
 This project features a fully automated CI/CD pipeline:
@@ -544,9 +534,8 @@ npm version patch              # Create new version
 git push origin main --tags    # Trigger automated publishing
 ```
 
-**Automated Flow**: Tests → NPM Publish → GitHub Packages → Release Creation  
-**Dual Registry Support**: Available on both NPM and GitHub Package Registry  
-**Full Documentation**: See [CI/CD Guide](https://github.com/greddy7574/taigaMcpServer/wiki/CICD.en) for complete setup
+**Automated Flow**: Tests → NPM Publish → GitHub Packages → Release Creation
+**Dual Registry Support**: Available on both NPM and GitHub Package Registry
 
 ## 🤝 Contributing
 
@@ -560,8 +549,8 @@ ISC License - This project is licensed under the ISC License, same as the origin
 - **Original Inspiration**: [adriapedralbes](https://github.com/adriapedralbes) / [mcpTAIGA](https://github.com/adriapedralbes/mcpTAIGA)
 - **This Implementation**: Substantial rewrite by greddy7574@gmail.com with AI assistance from Claude Code
 - **License**: ISC License
-- **Architecture**: Entirely new modular design with 33 MCP tools across 11 categories
-- **Current Version**: v1.8.0 - Enterprise Integration Edition with Epic Management
+- **Architecture**: Entirely new modular design with 50 MCP tools across 12 categories
+- **Current Version**: v1.9.14 - HTTP Integration Edition
 
 ---
 
