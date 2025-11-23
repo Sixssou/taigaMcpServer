@@ -16,7 +16,7 @@ import dotenv from 'dotenv';
 import { TaigaService } from './taigaService.js';
 import { authenticate } from './taigaAuth.js';
 import { SERVER_INFO, RESOURCE_URIS } from './constants.js';
-import { registerAllTools } from './tools/index.js';
+import { registerAllTools, getAllTools } from './tools/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -200,13 +200,47 @@ function createHttpServer() {
           let response;
 
           if (request.method === 'tools/list') {
-            response = await server.listTools();
+            // Return list of all available tools
+            const allTools = getAllTools();
+            response = {
+              tools: allTools.map(tool => ({
+                name: tool.name,
+                description: tool.schema.description || '',
+                inputSchema: tool.schema
+              }))
+            };
           } else if (request.method === 'tools/call') {
-            response = await server.callTool(request.params.name, request.params.arguments);
+            // Call a specific tool
+            const toolName = request.params.name;
+            const toolArgs = request.params.arguments || {};
+
+            const allTools = getAllTools();
+            const tool = allTools.find(t => t.name === toolName);
+
+            if (!tool) {
+              response = {
+                error: {
+                  code: -32602,
+                  message: `Tool not found: ${toolName}`
+                }
+              };
+            } else {
+              try {
+                const result = await tool.handler(toolArgs);
+                response = { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+              } catch (error) {
+                response = {
+                  error: {
+                    code: -32603,
+                    message: `Tool execution error: ${error.message}`
+                  }
+                };
+              }
+            }
           } else if (request.method === 'resources/list') {
-            response = await server.listResources();
+            response = { resources: [] };
           } else if (request.method === 'resources/read') {
-            response = await server.readResource(request.params.uri);
+            response = { contents: [] };
           } else if (request.method === 'initialize') {
             response = {
               protocolVersion: '2024-11-05',
@@ -219,6 +253,9 @@ function createHttpServer() {
                 version: SERVER_INFO.version
               }
             };
+          } else if (request.method === 'notifications/initialized') {
+            // Just acknowledge the notification
+            response = {};
           } else {
             response = {
               error: {
