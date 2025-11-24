@@ -77,7 +77,7 @@ Issue Details:
 - Subject: ${updatedIssue.subject}
 - Project: ${getSafeValue(updatedIssue.project_extra_info?.name)}
 - New Status: ${getSafeValue(updatedIssue.status_extra_info?.name)}
-- Assigned to: ${getSafeValue(updatedIssue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+- Assigned to: ${getSafeValue(updatedIssue.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 - Sprint: ${getSafeValue(updatedIssue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}`;
 
       return createSuccessResponse(successMessage);
@@ -110,7 +110,7 @@ Basic Information:
 - Type: ${getSafeValue(issue.type_extra_info?.name)}
 
 Assignment:
-- Assigned to: ${getSafeValue(issue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+- Assigned to: ${getSafeValue(issue.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 - Sprint: ${getSafeValue(issue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}
 
 Timeline:
@@ -354,8 +354,8 @@ export const assignIssueTool = {
       const assignmentDetails = `${SUCCESS_MESSAGES.ISSUE_CREATED.replace('created', 'assignment updated')}
 
 Issue: #${updatedIssue.ref} - ${updatedIssue.subject}
-Assigned to: ${assignedToId ? 
-  (updatedIssue.assigned_to_extra_info?.full_name || updatedIssue.assigned_to_extra_info?.username || 'Unknown user') : 
+Assigned to: ${assignedToId ?
+  (updatedIssue.assigned_to_extra_info?.full_name_display || updatedIssue.assigned_to_extra_info?.username || 'Unknown user') :
   'Unassigned'
 }
 Project: ${getSafeValue(updatedIssue.project_extra_info?.name)}

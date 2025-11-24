@@ -10,12 +10,27 @@ import { listUserStoriesTool, createUserStoryTool, getUserStoryTool, updateUserS
 import { createTaskTool, getTaskTool, updateTaskTool } from './taskTools.js';
 import { listIssuesTool, getIssueTool, createIssueTool, addIssueToSprintTool, assignIssueTool, updateIssueStatusTool } from './issueTools.js';
 import { listSprintsTool, getSprintStatsTool, createSprintTool, getIssuesBySprintTool, updateSprintTool, deleteSprintTool, getSprintCompleteTool, getUserStoriesByMilestoneTool, getTasksByUserStoryTool } from './sprintTools.js';
-import { batchCreateIssuesTool, batchCreateUserStoriesTool, batchCreateTasksTool } from './batchTools.js';
+import {
+  batchCreateIssuesTool,
+  batchCreateUserStoriesTool,
+  batchCreateTasksTool,
+  batchUpdateTasksTool,
+  batchUpdateUserStoriesTool,
+  batchAssignTool,
+  batchUpdateDueDatesTool
+} from './batchTools.js';
 import { advancedSearchTool, queryHelpTool, validateQueryTool } from './advancedSearchTools.js';
 import { addCommentTool, listCommentsTool, editCommentTool, deleteCommentTool } from './commentTools.js';
 import { uploadAttachmentTool, listAttachmentsTool, downloadAttachmentTool, deleteAttachmentTool } from './attachmentTools.js';
 import { createEpicTool, listEpicsTool, getEpicTool, updateEpicTool, linkStoryToEpicTool, unlinkStoryFromEpicTool } from './epicTools.js';
 import { createWikiPageTool, listWikiPagesTool, getWikiPageTool, updateWikiPageTool, deleteWikiPageTool, watchWikiPageTool } from './wikiTools.js';
+import {
+  getProjectMetadataTool,
+  listProjectMembersTool,
+  getAvailableStatusesTool,
+  listProjectMilestonesTool,
+  clearMetadataCacheTool
+} from './metadataTools.js';
 
 /**
  * Registry of all available MCP tools
@@ -77,7 +92,11 @@ export const toolRegistry = {
   batch: [
     batchCreateIssuesTool,
     batchCreateUserStoriesTool,
-    batchCreateTasksTool
+    batchCreateTasksTool,
+    batchUpdateTasksTool,
+    batchUpdateUserStoriesTool,
+    batchAssignTool,
+    batchUpdateDueDatesTool
   ],
   
   // Advanced search tools
@@ -121,6 +140,15 @@ export const toolRegistry = {
     updateWikiPageTool,
     deleteWikiPageTool,
     watchWikiPageTool
+  ],
+
+  // Metadata discovery tools
+  metadata: [
+    getProjectMetadataTool,
+    listProjectMembersTool,
+    getAvailableStatusesTool,
+    listProjectMilestonesTool,
+    clearMetadataCacheTool
   ]
 };
 

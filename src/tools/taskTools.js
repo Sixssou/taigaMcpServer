@@ -123,7 +123,7 @@ Basic Information:
 - User Story: ${task.user_story_extra_info ? `#${task.user_story_extra_info.ref} - ${task.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}
 
 Assignment:
-- Assigned to: ${getSafeValue(task.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+- Assigned to: ${getSafeValue(task.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 
 Timeline:
 - Created: ${formatDateTime(task.created_date)}
@@ -205,40 +205,32 @@ export const updateTaskTool = {
         if (assignedTo.toLowerCase() === 'unassign' || assignedTo.toLowerCase() === 'none') {
           updateData.assigned_to = null;
         } else {
-          // Get project members to find the assignee
-          const members = await taigaService.getProjectMembers(projectId);
-
-          // Try to find user by full name, email, or user ID
-          const member = members.find(m =>
-            m.full_name === assignedTo ||
-            m.user === parseInt(assignedTo) ||
-            m.email === assignedTo ||
-            m.user_email === assignedTo ||
-            m.full_name?.toLowerCase() === assignedTo.toLowerCase()
-          );
-
-          if (!member) {
-            const availableMembers = members.map(m =>
-              `- ${m.full_name} (${m.user_email || m.email}) - ID: ${m.user}`
-            ).join('\n');
-
+          // Use enhanced user resolution
+          const { resolveUser } = await import('../userResolution.js');
+          try {
+            const user = await resolveUser(assignedTo, projectId, {
+              fuzzyMatch: true,
+              fuzzyThreshold: 70
+            });
+            updateData.assigned_to = user.userId;
+          } catch (error) {
             return createErrorResponse(
-              `User "${assignedTo}" not found in project. Available members:\n${availableMembers}`
+              `Failed to resolve user for assignment:\n${error.message}`
             );
           }
-
-          updateData.assigned_to = member.user;
         }
       }
 
       const updatedTask = await taigaService.updateTask(currentTask.id, updateData);
 
+      // According to Taiga API docs, PATCH returns the complete task detail object
+      // with all *_extra_info fields, so we should use it directly
       const updateDetails = `${SUCCESS_MESSAGES.TASK_UPDATED}
 
 Task: #${updatedTask.ref} - ${updatedTask.subject}
 Project: ${getSafeValue(updatedTask.project_extra_info?.name)}
 Status: ${getSafeValue(updatedTask.status_extra_info?.name)}
-Assigned to: ${getSafeValue(updatedTask.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+Assigned to: ${getSafeValue(updatedTask.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 Due Date: ${getSafeValue(updatedTask.due_date, STATUS_LABELS.NOT_SET)}
 User Story: ${updatedTask.user_story_extra_info ? `#${updatedTask.user_story_extra_info.ref} - ${updatedTask.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}`;
 
