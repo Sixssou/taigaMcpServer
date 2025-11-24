@@ -422,9 +422,11 @@ export const batchUpdateUserStoriesTool = {
       subject: z.string().optional().describe('New user story title'),
       description: z.string().optional().describe('New user story description'),
       status: z.string().optional().describe('Status name'),
-      assignedTo: z.string().optional().describe('User identifier (username, email, or ID)'),
-      milestone: z.string().optional().describe('Sprint/milestone identifier'),
-      points: z.number().optional().describe('Story points'),
+      assignedTo: z.string().optional().describe('User identifier (username, email, or ID, or "unassign" to remove assignment)'),
+      milestone: z.string().optional().describe('Sprint/milestone identifier (or "remove"/"none" to remove from sprint)'),
+      epic: z.string().optional().describe('Epic identifier (ID or reference number, or "remove"/"none" to unlink from epic)'),
+      points: z.number().optional().describe('Story points (single number will be applied to default role)'),
+      dueDate: z.string().optional().describe('Due date (YYYY-MM-DD) or "null" to clear'),
       tags: z.array(z.string()).optional().describe('User story tags')
     })).describe('Array of user stories to update'),
     continueOnError: z.boolean().optional().describe('Continue processing if an update fails (default: true)')
@@ -448,7 +450,7 @@ export const batchUpdateUserStoriesTool = {
         const storyUpdate = userStories[i];
         try {
           // Import utilities
-          const { resolveUserStory, findIdByName, resolveMilestone } = await import('../utils.js');
+          const { resolveUserStory, findIdByName, resolveMilestone, resolveEpic } = await import('../utils.js');
           const { resolveUser } = await import('../userResolution.js');
 
           // Get current user story
@@ -459,7 +461,65 @@ export const batchUpdateUserStoriesTool = {
           if (storyUpdate.subject !== undefined) updateData.subject = storyUpdate.subject;
           if (storyUpdate.description !== undefined) updateData.description = storyUpdate.description;
           if (storyUpdate.tags !== undefined) updateData.tags = storyUpdate.tags;
-          if (storyUpdate.points !== undefined) updateData.points = storyUpdate.points;
+
+          // Handle story points
+          // Taiga points system: points config has IDs that map to values
+          // Format: {"role_id": points_config_id} where points_config.value = desired value
+          if (storyUpdate.points !== undefined) {
+            try {
+              // Get project to access points configuration
+              const project = await taigaService.getProject(projectId);
+
+              if (!project.points || !Array.isArray(project.points) || project.points.length === 0) {
+                throw new Error('No points configuration found in project. Please configure story points in Taiga project settings.');
+              }
+
+              // Find the points config entry that matches the desired value
+              const pointsConfig = project.points.find(p => p.value === storyUpdate.points);
+
+              if (!pointsConfig) {
+                const availablePoints = project.points
+                  .map(p => `${p.value} (id: ${p.id})`)
+                  .join(', ');
+                throw new Error(`Invalid story points value: ${storyUpdate.points}. Available values: ${availablePoints}`);
+              }
+
+              // Get project members to find valid role IDs
+              const members = await taigaService.getProjectMembers(projectId);
+
+              if (!members || members.length === 0) {
+                throw new Error('No project members found. Cannot determine valid role ID for points.');
+              }
+
+              // Extract valid role IDs from current project members
+              const validRoleIds = members
+                .map(m => m.role)
+                .filter(roleId => roleId !== null && roleId !== undefined);
+
+              if (validRoleIds.length === 0) {
+                throw new Error('No valid role IDs found in project members. Cannot set story points.');
+              }
+
+              // Use the first valid role ID with the points config ID
+              const roleId = validRoleIds[0];
+              updateData.points = { [roleId]: pointsConfig.id };
+
+              console.error(`Setting points: value=${storyUpdate.points} -> config_id=${pointsConfig.id} for role=${roleId}`);
+
+            } catch (error) {
+              console.error('Error preparing points update:', error);
+              throw new Error(`Cannot set story points: ${error.message}`);
+            }
+          }
+
+          // Handle due date
+          if (storyUpdate.dueDate !== undefined) {
+            if (storyUpdate.dueDate === null || storyUpdate.dueDate.toLowerCase() === 'null' || storyUpdate.dueDate === '') {
+              updateData.due_date = null;
+            } else {
+              updateData.due_date = storyUpdate.dueDate;
+            }
+          }
 
           // Handle status
           if (storyUpdate.status) {
@@ -467,11 +527,13 @@ export const batchUpdateUserStoriesTool = {
             const statusId = findIdByName(statuses, storyUpdate.status);
             if (statusId) {
               updateData.status = statusId;
+            } else {
+              throw new Error(`Status "${storyUpdate.status}" not found in project`);
             }
           }
 
           // Handle assignment
-          if (storyUpdate.assignedTo) {
+          if (storyUpdate.assignedTo !== undefined) {
             if (storyUpdate.assignedTo.toLowerCase() === 'unassign' || storyUpdate.assignedTo.toLowerCase() === 'none') {
               updateData.assigned_to = null;
             } else {
@@ -481,7 +543,7 @@ export const batchUpdateUserStoriesTool = {
           }
 
           // Handle milestone
-          if (storyUpdate.milestone) {
+          if (storyUpdate.milestone !== undefined) {
             if (storyUpdate.milestone.toLowerCase() === 'remove' || storyUpdate.milestone.toLowerCase() === 'none') {
               updateData.milestone = null;
             } else {
@@ -490,7 +552,39 @@ export const batchUpdateUserStoriesTool = {
             }
           }
 
+          // Handle epic - automatically unlink from old epic if switching to new one
+          let epicOperation = null;
+          if (storyUpdate.epic !== undefined) {
+            if (storyUpdate.epic.toLowerCase() === 'remove' || storyUpdate.epic.toLowerCase() === 'none') {
+              epicOperation = { action: 'unlink' };
+            } else {
+              // Resolve epic identifier to get epic ID
+              const epic = await resolveEpic(storyUpdate.epic, projectIdentifier);
+              epicOperation = { action: 'link', epicId: epic.id };
+
+              // Check if story is already linked to a DIFFERENT epic
+              if (currentStory.epic && currentStory.epic !== epic.id) {
+                epicOperation.needsUnlink = true;
+                console.error(`Story #${currentStory.ref} is linked to epic ${currentStory.epic}, will unlink before linking to ${epic.id}`);
+              }
+            }
+          }
+
           const updatedStory = await taigaService.updateUserStory(currentStory.id, updateData);
+
+          // Handle epic linking/unlinking after the main update
+          if (epicOperation) {
+            if (epicOperation.action === 'link') {
+              // Automatically unlink from old epic first if needed
+              if (epicOperation.needsUnlink) {
+                console.error(`Auto-unlinking story #${currentStory.ref} from old epic before linking to new one`);
+                await taigaService.unlinkStoryFromEpic(currentStory.id);
+              }
+              await taigaService.linkStoryToEpic(currentStory.id, epicOperation.epicId);
+            } else if (epicOperation.action === 'unlink') {
+              await taigaService.unlinkStoryFromEpic(currentStory.id);
+            }
+          }
 
           results.push({
             index: i + 1,
@@ -500,10 +594,29 @@ export const batchUpdateUserStoriesTool = {
             status: 'success'
           });
         } catch (error) {
+          // Provide detailed error information
+          let errorMessage = error.message;
+
+          // Add context about what was being updated
+          const updatedFields = [];
+          if (storyUpdate.subject) updatedFields.push('subject');
+          if (storyUpdate.description !== undefined) updatedFields.push('description');
+          if (storyUpdate.status) updatedFields.push('status');
+          if (storyUpdate.points !== undefined) updatedFields.push('points');
+          if (storyUpdate.assignedTo !== undefined) updatedFields.push('assignedTo');
+          if (storyUpdate.milestone !== undefined) updatedFields.push('milestone');
+          if (storyUpdate.epic !== undefined) updatedFields.push('epic');
+          if (storyUpdate.dueDate !== undefined) updatedFields.push('dueDate');
+          if (storyUpdate.tags !== undefined) updatedFields.push('tags');
+
+          if (updatedFields.length > 0) {
+            errorMessage += ` (attempting to update: ${updatedFields.join(', ')})`;
+          }
+
           errors.push({
             index: i + 1,
             userStoryIdentifier: storyUpdate.userStoryIdentifier,
-            error: error.message,
+            error: errorMessage,
             status: 'failed'
           });
 

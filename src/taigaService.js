@@ -250,11 +250,16 @@ export class TaigaService {
       // DEBUG: Log update attempt
       console.error('=== USER STORY PATCH DEBUG ===');
       console.error('User Story ID:', userStoryId);
-      console.error('Update data sent:', JSON.stringify(updateData, null, 2));
+      console.error('Update data sent:', JSON.stringify(dataWithVersion, null, 2));
       console.error('Version:', currentStory.data.version);
 
       const response = await client.patch(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`, dataWithVersion);
 
+      console.error('Response status:', response.status);
+      console.error('points in response:', response.data.points);
+      console.error('total_points in response:', response.data.total_points);
+      console.error('milestone in response:', response.data.milestone);
+      console.error('milestone_name in response:', response.data.milestone_extra_info?.name);
       console.error('assigned_to in response:', response.data.assigned_to);
       console.error('assigned_to_extra_info in response:', JSON.stringify(response.data.assigned_to_extra_info, null, 2));
       console.error('==============================');
@@ -262,8 +267,31 @@ export class TaigaService {
       return response.data;
     } catch (error) {
       console.error('Failed to update user story:', error.message);
-      console.error('Error details:', error.response?.data || error);
-      throw new Error('Failed to update user story in Taiga');
+      console.error('Error response status:', error.response?.status);
+      console.error('Error response data:', JSON.stringify(error.response?.data, null, 2));
+
+      // Provide more detailed error message
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        const errorMessages = [];
+
+        // Extract field-specific errors
+        Object.entries(errorData).forEach(([field, messages]) => {
+          if (Array.isArray(messages)) {
+            errorMessages.push(`${field}: ${messages.join(', ')}`);
+          } else if (typeof messages === 'string') {
+            errorMessages.push(`${field}: ${messages}`);
+          } else if (typeof messages === 'object') {
+            errorMessages.push(`${field}: ${JSON.stringify(messages)}`);
+          }
+        });
+
+        if (errorMessages.length > 0) {
+          throw new Error(`Failed to update user story in Taiga: ${errorMessages.join('; ')}`);
+        }
+      }
+
+      throw new Error(`Failed to update user story in Taiga: ${error.message}`);
     }
   }
 
