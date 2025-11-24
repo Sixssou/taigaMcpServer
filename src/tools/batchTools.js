@@ -463,10 +463,27 @@ export const batchUpdateUserStoriesTool = {
           if (storyUpdate.tags !== undefined) updateData.tags = storyUpdate.tags;
 
           // Handle story points
-          // Taiga points system: points are stored per role as {"role_id": value}
-          // We need to find a VALID role ID currently in use in the project
+          // Taiga points system: points config has IDs that map to values
+          // Format: {"role_id": points_config_id} where points_config.value = desired value
           if (storyUpdate.points !== undefined) {
             try {
+              // Get project to access points configuration
+              const project = await taigaService.getProject(projectId);
+
+              if (!project.points || !Array.isArray(project.points) || project.points.length === 0) {
+                throw new Error('No points configuration found in project. Please configure story points in Taiga project settings.');
+              }
+
+              // Find the points config entry that matches the desired value
+              const pointsConfig = project.points.find(p => p.value === storyUpdate.points);
+
+              if (!pointsConfig) {
+                const availablePoints = project.points
+                  .map(p => `${p.value} (id: ${p.id})`)
+                  .join(', ');
+                throw new Error(`Invalid story points value: ${storyUpdate.points}. Available values: ${availablePoints}`);
+              }
+
               // Get project members to find valid role IDs
               const members = await taigaService.getProjectMembers(projectId);
 
@@ -483,11 +500,11 @@ export const batchUpdateUserStoriesTool = {
                 throw new Error('No valid role IDs found in project members. Cannot set story points.');
               }
 
-              // Use the first valid role ID (usually the primary role)
+              // Use the first valid role ID with the points config ID
               const roleId = validRoleIds[0];
-              updateData.points = { [roleId]: storyUpdate.points };
+              updateData.points = { [roleId]: pointsConfig.id };
 
-              console.error(`Using role ID ${roleId} for points (from ${members.length} project members)`);
+              console.error(`Setting points: value=${storyUpdate.points} -> config_id=${pointsConfig.id} for role=${roleId}`);
 
             } catch (error) {
               console.error('Error preparing points update:', error);
