@@ -599,20 +599,17 @@ export const batchAssignTool = {
           // Resolve item
           const item = await resolver(identifier, projectIdentifier);
 
-          // Update assignment
-          await updater(item.id, {
+          // Update assignment - PATCH returns complete object with assigned_to_extra_info
+          const updatedItem = await updater(item.id, {
             assigned_to: userId
           });
-
-          // Re-fetch to get enriched data (assigned_to_extra_info)
-          const enrichedItem = await resolver(identifier, projectIdentifier);
 
           results.push({
             index: i + 1,
             identifier,
-            ref: enrichedItem.ref,
-            subject: enrichedItem.subject,
-            assignedTo: enrichedItem.assigned_to_extra_info?.full_name || 'Unassigned',
+            ref: updatedItem.ref,
+            subject: updatedItem.subject,
+            assignedTo: updatedItem.assigned_to_extra_info?.full_name || 'Unassigned',
             status: 'success'
           });
         } catch (error) {

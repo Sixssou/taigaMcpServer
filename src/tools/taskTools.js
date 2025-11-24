@@ -223,18 +223,16 @@ export const updateTaskTool = {
 
       const updatedTask = await taigaService.updateTask(currentTask.id, updateData);
 
-      // Re-fetch task to get enriched data (assigned_to_extra_info, etc.)
-      // because PATCH doesn't always return complete *_extra_info fields
-      const enrichedTask = await taigaService.getTask(currentTask.id);
-
+      // According to Taiga API docs, PATCH returns the complete task detail object
+      // with all *_extra_info fields, so we should use it directly
       const updateDetails = `${SUCCESS_MESSAGES.TASK_UPDATED}
 
-Task: #${enrichedTask.ref} - ${enrichedTask.subject}
-Project: ${getSafeValue(enrichedTask.project_extra_info?.name)}
-Status: ${getSafeValue(enrichedTask.status_extra_info?.name)}
-Assigned to: ${getSafeValue(enrichedTask.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
-Due Date: ${getSafeValue(enrichedTask.due_date, STATUS_LABELS.NOT_SET)}
-User Story: ${enrichedTask.user_story_extra_info ? `#${enrichedTask.user_story_extra_info.ref} - ${enrichedTask.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}`;
+Task: #${updatedTask.ref} - ${updatedTask.subject}
+Project: ${getSafeValue(updatedTask.project_extra_info?.name)}
+Status: ${getSafeValue(updatedTask.status_extra_info?.name)}
+Assigned to: ${getSafeValue(updatedTask.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+Due Date: ${getSafeValue(updatedTask.due_date, STATUS_LABELS.NOT_SET)}
+User Story: ${updatedTask.user_story_extra_info ? `#${updatedTask.user_story_extra_info.ref} - ${updatedTask.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}`;
 
       return createSuccessResponse(updateDetails);
     } catch (error) {
