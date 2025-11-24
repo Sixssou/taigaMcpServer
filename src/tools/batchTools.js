@@ -609,7 +609,7 @@ export const batchAssignTool = {
             identifier,
             ref: updatedItem.ref,
             subject: updatedItem.subject,
-            assignedTo: updatedItem.assigned_to_extra_info?.full_name || 'Unassigned',
+            assignedTo: updatedItem.assigned_to_extra_info?.full_name_display || 'Unassigned',
             status: 'success'
           });
         } catch (error) {

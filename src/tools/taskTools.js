@@ -123,7 +123,7 @@ Basic Information:
 - User Story: ${task.user_story_extra_info ? `#${task.user_story_extra_info.ref} - ${task.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}
 
 Assignment:
-- Assigned to: ${getSafeValue(task.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+- Assigned to: ${getSafeValue(task.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 
 Timeline:
 - Created: ${formatDateTime(task.created_date)}
@@ -230,7 +230,7 @@ export const updateTaskTool = {
 Task: #${updatedTask.ref} - ${updatedTask.subject}
 Project: ${getSafeValue(updatedTask.project_extra_info?.name)}
 Status: ${getSafeValue(updatedTask.status_extra_info?.name)}
-Assigned to: ${getSafeValue(updatedTask.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+Assigned to: ${getSafeValue(updatedTask.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 Due Date: ${getSafeValue(updatedTask.due_date, STATUS_LABELS.NOT_SET)}
 User Story: ${updatedTask.user_story_extra_info ? `#${updatedTask.user_story_extra_info.ref} - ${updatedTask.user_story_extra_info.subject}` : STATUS_LABELS.NOT_SET}`;
 

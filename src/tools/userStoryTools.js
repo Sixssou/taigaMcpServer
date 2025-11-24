@@ -114,7 +114,7 @@ Basic Information:
 - Owner: ${getSafeValue(userStory.owner_extra_info?.full_name)}
 
 Assignment:
-- Assigned to: ${getSafeValue(userStory.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}
+- Assigned to: ${getSafeValue(userStory.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 - Milestone: ${getSafeValue(userStory.milestone_extra_info?.name, 'No milestone')}
 
 Timeline:
@@ -177,9 +177,23 @@ export const updateUserStoryTool = {
 
       // Get assignee ID if provided
       if (assignedTo) {
-        // For simplicity, we'll assume it's a user ID. In a real implementation,
-        // you might want to add a helper function to resolve usernames to IDs
-        updateData.assigned_to = assignedTo;
+        if (assignedTo.toLowerCase() === 'unassign' || assignedTo.toLowerCase() === 'none') {
+          updateData.assigned_to = null;
+        } else {
+          // Use enhanced user resolution
+          const { resolveUser } = await import('../userResolution.js');
+          try {
+            const user = await resolveUser(assignedTo, projectId, {
+              fuzzyMatch: true,
+              fuzzyThreshold: 70
+            });
+            updateData.assigned_to = user.userId;
+          } catch (error) {
+            return createErrorResponse(
+              `Failed to resolve user for assignment:\n${error.message}`
+            );
+          }
+        }
       }
 
       const updatedStory = await taigaService.updateUserStory(currentStory.id, updateData);
@@ -190,7 +204,7 @@ User Story: #${updatedStory.ref} - ${updatedStory.subject}
 Project: ${getSafeValue(updatedStory.project_extra_info?.name)}
 Status: ${getSafeValue(updatedStory.status_extra_info?.name)}
 Points: ${getSafeValue(updatedStory.total_points, 'Not set')}
-Assigned to: ${getSafeValue(updatedStory.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}`;
+Assigned to: ${getSafeValue(updatedStory.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}`;
 
       return createSuccessResponse(updateDetails);
     } catch (error) {

@@ -607,6 +607,15 @@ export class TaigaService {
       const response = await client.get(API_ENDPOINTS.MEMBERSHIPS, {
         params: { project: projectId }
       });
+
+      // DEBUG: Log member structure
+      if (response.data && response.data.length > 0) {
+        console.error('=== MEMBER API DEBUG ===');
+        console.error('First member keys:', Object.keys(response.data[0]));
+        console.error('First member sample:', JSON.stringify(response.data[0], null, 2));
+        console.error('=======================');
+      }
+
       return response.data;
     } catch (error) {
       console.error(`Failed to get project members for project ${projectId}:`, error.message);

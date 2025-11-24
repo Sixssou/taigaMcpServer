@@ -512,7 +512,7 @@ export function formatIssueList(issues) {
   Status: ${getSafeValue(issue.status_extra_info?.name)}
   Priority: ${getSafeValue(issue.priority_extra_info?.name)}
   Sprint: ${getSafeValue(issue.milestone_extra_info?.name, STATUS_LABELS.NO_SPRINT)}
-  Assigned: ${getSafeValue(issue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}`).join('\n\n');
+  Assigned: ${getSafeValue(issue.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}`).join('\n\n');
 }
 
 /**
@@ -540,7 +540,7 @@ export function formatSprintIssues(issues) {
   return issues.map(issue => `- #${issue.ref}: ${issue.subject}
    Status: ${getSafeValue(issue.status_extra_info?.name)}
    Priority: ${getSafeValue(issue.priority_extra_info?.name)}
-   Assigned: ${getSafeValue(issue.assigned_to_extra_info?.full_name, STATUS_LABELS.UNASSIGNED)}`).join('\n\n');
+   Assigned: ${getSafeValue(issue.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}`).join('\n\n');
 }
 
 /**
