@@ -464,44 +464,34 @@ export const batchUpdateUserStoriesTool = {
 
           // Handle story points
           // Taiga points system: points are stored per role as {"role_id": value}
-          // We need to find the correct role ID to use
+          // We need to find a VALID role ID currently in use in the project
           if (storyUpdate.points !== undefined) {
             try {
-              // Get project details to find point configuration
-              const project = await taigaService.getProject(projectId);
+              // Get project members to find valid role IDs
+              const members = await taigaService.getProjectMembers(projectId);
 
-              // Check if project has 'points' configuration (array of point values)
-              // or 'default_points' setting
-              if (project.default_points !== undefined) {
-                // Use project's default points role
-                updateData.points = { [project.default_points]: storyUpdate.points };
-              } else if (project.points && Array.isArray(project.points) && project.points.length > 0) {
-                // Project has points configuration - use first available role ID
-                const firstRoleKey = Object.keys(project.points[0])[0];
-                if (firstRoleKey) {
-                  updateData.points = { [firstRoleKey]: storyUpdate.points };
-                } else {
-                  // Try simple format
-                  updateData.points = { "?": storyUpdate.points };
-                }
-              } else {
-                // Last resort: try to get an existing story with points to see the format
-                const stories = await taigaService.listUserStories(projectId);
-                const storyWithPoints = stories.find(s => s.points && typeof s.points === 'object' && Object.keys(s.points).length > 0);
-
-                if (storyWithPoints) {
-                  // Use the same role key as an existing story
-                  const roleKey = Object.keys(storyWithPoints.points)[0];
-                  updateData.points = { [roleKey]: storyUpdate.points };
-                } else {
-                  // No stories with points found - try with "?" key (common for undefined role)
-                  updateData.points = { "?": storyUpdate.points };
-                }
+              if (!members || members.length === 0) {
+                throw new Error('No project members found. Cannot determine valid role ID for points.');
               }
+
+              // Extract valid role IDs from current project members
+              const validRoleIds = members
+                .map(m => m.role)
+                .filter(roleId => roleId !== null && roleId !== undefined);
+
+              if (validRoleIds.length === 0) {
+                throw new Error('No valid role IDs found in project members. Cannot set story points.');
+              }
+
+              // Use the first valid role ID (usually the primary role)
+              const roleId = validRoleIds[0];
+              updateData.points = { [roleId]: storyUpdate.points };
+
+              console.error(`Using role ID ${roleId} for points (from ${members.length} project members)`);
+
             } catch (error) {
               console.error('Error preparing points update:', error);
-              // Ultimate fallback: try sending with "?" key
-              updateData.points = { "?": storyUpdate.points };
+              throw new Error(`Cannot set story points: ${error.message}`);
             }
           }
 
