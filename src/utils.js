@@ -255,6 +255,27 @@ export async function resolveMilestone(milestoneIdentifier, projectIdentifier, o
     return { ...milestone, _matchType: 'case_insensitive' };
   }
 
+  // Try substring match (contains) - case insensitive
+  // This helps find "S47" in "S47–S48" or "Sprint 1" in "Sprint 12"
+  const substringMatches = milestones.filter(m =>
+    m.name.toLowerCase().includes(milestoneIdentifier.toLowerCase()) ||
+    milestoneIdentifier.toLowerCase().includes(m.name.toLowerCase())
+  );
+
+  if (substringMatches.length === 1) {
+    return { ...substringMatches[0], _matchType: 'substring' };
+  } else if (substringMatches.length > 1) {
+    // Multiple substring matches - show suggestions
+    const suggestions = substringMatches.slice(0, 5).map(m =>
+      `  - "${m.name}" (ID: ${m.id})`
+    ).join('\n');
+
+    throw new Error(
+      `Multiple milestones match "${milestoneIdentifier}". Please be more specific:\n${suggestions}\n\n` +
+      formatAvailableMilestones(milestones)
+    );
+  }
+
   // Try fuzzy matching if enabled
   if (fuzzyMatch) {
     const fuzzyMatches = milestones
