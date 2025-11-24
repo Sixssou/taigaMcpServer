@@ -462,22 +462,46 @@ export const batchUpdateUserStoriesTool = {
           if (storyUpdate.description !== undefined) updateData.description = storyUpdate.description;
           if (storyUpdate.tags !== undefined) updateData.tags = storyUpdate.tags;
 
-          // Handle story points - Taiga expects points as an object mapping role IDs to values
-          // For simplicity, we'll get the project's default role and use that
+          // Handle story points
+          // Taiga points system: points are stored per role as {"role_id": value}
+          // We need to find the correct role ID to use
           if (storyUpdate.points !== undefined) {
             try {
+              // Get project details to find point configuration
               const project = await taigaService.getProject(projectId);
-              if (project.roles && project.roles.length > 0) {
-                // Use the first role (usually the default role)
-                const defaultRoleId = project.roles[0].id;
-                updateData.points = { [defaultRoleId]: storyUpdate.points };
+
+              // Check if project has 'points' configuration (array of point values)
+              // or 'default_points' setting
+              if (project.default_points !== undefined) {
+                // Use project's default points role
+                updateData.points = { [project.default_points]: storyUpdate.points };
+              } else if (project.points && Array.isArray(project.points) && project.points.length > 0) {
+                // Project has points configuration - use first available role ID
+                const firstRoleKey = Object.keys(project.points[0])[0];
+                if (firstRoleKey) {
+                  updateData.points = { [firstRoleKey]: storyUpdate.points };
+                } else {
+                  // Try simple format
+                  updateData.points = { "?": storyUpdate.points };
+                }
               } else {
-                // Fallback: try to send as-is
-                updateData.points = storyUpdate.points;
+                // Last resort: try to get an existing story with points to see the format
+                const stories = await taigaService.listUserStories(projectId);
+                const storyWithPoints = stories.find(s => s.points && typeof s.points === 'object' && Object.keys(s.points).length > 0);
+
+                if (storyWithPoints) {
+                  // Use the same role key as an existing story
+                  const roleKey = Object.keys(storyWithPoints.points)[0];
+                  updateData.points = { [roleKey]: storyUpdate.points };
+                } else {
+                  // No stories with points found - try with "?" key (common for undefined role)
+                  updateData.points = { "?": storyUpdate.points };
+                }
               }
             } catch (error) {
-              // If we can't get roles, try sending the number as-is
-              updateData.points = storyUpdate.points;
+              console.error('Error preparing points update:', error);
+              // Ultimate fallback: try sending with "?" key
+              updateData.points = { "?": storyUpdate.points };
             }
           }
 
