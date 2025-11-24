@@ -604,6 +604,9 @@ export const batchAssignTool = {
             assigned_to: userId
           });
 
+          // Small delay to ensure Taiga API has propagated the changes
+          await new Promise(resolve => setTimeout(resolve, 300));
+
           // Re-fetch to get enriched data (assigned_to_extra_info)
           const enrichedItem = await resolver(identifier, projectIdentifier);
 

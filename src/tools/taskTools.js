@@ -223,6 +223,9 @@ export const updateTaskTool = {
 
       const updatedTask = await taigaService.updateTask(currentTask.id, updateData);
 
+      // Small delay to ensure Taiga API has propagated the changes
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Re-fetch task to get enriched data (assigned_to_extra_info, etc.)
       // because PATCH doesn't always return complete *_extra_info fields
       const enrichedTask = await taigaService.getTask(currentTask.id);
