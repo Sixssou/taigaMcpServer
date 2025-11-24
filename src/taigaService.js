@@ -402,17 +402,6 @@ export class TaigaService {
       const client = await createAuthenticatedClient();
       const url = `${API_ENDPOINTS.TASKS}/${taskId}`;
       const response = await client.get(url);
-
-      // Debug logging for assignment issues
-      if (process.env.DEBUG_ASSIGNMENT === 'true') {
-        console.error('DEBUG getTask response:', {
-          taskId,
-          assigned_to: response.data.assigned_to,
-          assigned_to_extra_info: response.data.assigned_to_extra_info,
-          hasExtraInfo: !!response.data.assigned_to_extra_info
-        });
-      }
-
       return response.data;
     } catch (error) {
       console.error(`Failed to get task ${taskId}:`, error.message);
