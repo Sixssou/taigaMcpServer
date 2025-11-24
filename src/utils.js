@@ -370,6 +370,94 @@ export async function findSprint(searchTerm, projectIdentifier, options = {}) {
 }
 
 /**
+ * Resolve Epic identifier (ID or reference number) to Epic object
+ * @param {string} epicIdentifier - Epic ID or reference number (e.g., "123", "#45", or "45")
+ * @param {string} projectIdentifier - Project ID or slug (required if using reference number)
+ * @returns {Promise<Object>} - Epic object
+ */
+export async function resolveEpic(epicIdentifier, projectIdentifier) {
+  // If it's a pure number, try as direct ID first
+  if (/^\d+$/.test(epicIdentifier)) {
+    try {
+      const epic = await taigaService.getEpic(epicIdentifier);
+      return epic;
+    } catch (error) {
+      // If that fails and we have a project identifier, try by reference
+      if (projectIdentifier) {
+        const projectId = await resolveProjectId(projectIdentifier);
+        const epics = await taigaService.listEpics(projectId);
+
+        // Try to find by reference number
+        const epic = epics.find(e => e.ref === parseInt(epicIdentifier));
+        if (epic) {
+          return epic;
+        }
+
+        // Try to find by subject
+        const epicBySubject = epics.find(e =>
+          e.subject === epicIdentifier ||
+          e.subject.toLowerCase() === epicIdentifier.toLowerCase()
+        );
+        if (epicBySubject) {
+          return epicBySubject;
+        }
+
+        throw new Error(`Epic not found by ID "${epicIdentifier}" or reference in project`);
+      } else {
+        throw new Error(`Epic ID "${epicIdentifier}" not found`);
+      }
+    }
+  }
+
+  // Handle reference format like "#123"
+  if (epicIdentifier.startsWith('#')) {
+    const refNumber = epicIdentifier.substring(1);
+    if (!projectIdentifier) {
+      throw new Error('Project identifier is required when using epic reference number');
+    }
+
+    const projectId = await resolveProjectId(projectIdentifier);
+    const epics = await taigaService.listEpics(projectId);
+    const epic = epics.find(e => e.ref === parseInt(refNumber));
+
+    if (!epic) {
+      throw new Error(`Epic with reference ${epicIdentifier} not found in project`);
+    }
+
+    return epic;
+  }
+
+  // For other strings, treat as subject and search in project
+  if (!projectIdentifier) {
+    throw new Error('Project identifier is required when using epic subject');
+  }
+
+  const projectId = await resolveProjectId(projectIdentifier);
+  const epics = await taigaService.listEpics(projectId);
+
+  // Try exact match
+  let epic = epics.find(e => e.subject === epicIdentifier);
+  if (epic) {
+    return epic;
+  }
+
+  // Try case-insensitive match
+  epic = epics.find(e => e.subject.toLowerCase() === epicIdentifier.toLowerCase());
+  if (epic) {
+    return epic;
+  }
+
+  // No match found - provide helpful error
+  const availableEpics = epics.slice(0, 10).map(e =>
+    `  - #${e.ref}: "${e.subject}" (ID: ${e.id})`
+  ).join('\n');
+
+  throw new Error(
+    `Epic "${epicIdentifier}" not found in project.\n\nAvailable epics:\n${availableEpics}`
+  );
+}
+
+/**
  * Find status ID by name
  * @param {Array} statuses - Array of status objects
  * @param {string} statusName - Status name to find
