@@ -239,7 +239,7 @@ export class TaigaService {
   async updateUserStory(userStoryId, updateData) {
     try {
       const client = await createAuthenticatedClient();
-      
+
       // Get current user story to get version for update
       const currentStory = await client.get(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`);
       const dataWithVersion = {
@@ -247,10 +247,22 @@ export class TaigaService {
         version: currentStory.data.version
       };
 
+      // DEBUG: Log update attempt
+      console.error('=== USER STORY PATCH DEBUG ===');
+      console.error('User Story ID:', userStoryId);
+      console.error('Update data sent:', JSON.stringify(updateData, null, 2));
+      console.error('Version:', currentStory.data.version);
+
       const response = await client.patch(`${API_ENDPOINTS.USER_STORIES}/${userStoryId}`, dataWithVersion);
+
+      console.error('assigned_to in response:', response.data.assigned_to);
+      console.error('assigned_to_extra_info in response:', JSON.stringify(response.data.assigned_to_extra_info, null, 2));
+      console.error('==============================');
+
       return response.data;
     } catch (error) {
       console.error('Failed to update user story:', error.message);
+      console.error('Error details:', error.response?.data || error);
       throw new Error('Failed to update user story in Taiga');
     }
   }
@@ -402,6 +414,15 @@ export class TaigaService {
       const client = await createAuthenticatedClient();
       const url = `${API_ENDPOINTS.TASKS}/${taskId}`;
       const response = await client.get(url);
+
+      // DEBUG: Log what GET returns
+      console.error('=== GET RESPONSE DEBUG ===');
+      console.error('Task ID:', taskId);
+      console.error('assigned_to in response:', response.data.assigned_to);
+      console.error('assigned_to_extra_info in response:', JSON.stringify(response.data.assigned_to_extra_info, null, 2));
+      console.error('Full response keys:', Object.keys(response.data));
+      console.error('========================');
+
       return response.data;
     } catch (error) {
       console.error(`Failed to get task ${taskId}:`, error.message);
@@ -446,6 +467,16 @@ export class TaigaService {
       };
 
       const response = await client.patch(`${API_ENDPOINTS.TASKS}/${taskId}`, dataWithVersion);
+
+      // DEBUG: Log what PATCH actually returns
+      console.error('=== PATCH RESPONSE DEBUG ===');
+      console.error('Task ID:', taskId);
+      console.error('Update data sent:', JSON.stringify(updateData, null, 2));
+      console.error('assigned_to in response:', response.data.assigned_to);
+      console.error('assigned_to_extra_info in response:', JSON.stringify(response.data.assigned_to_extra_info, null, 2));
+      console.error('Full response keys:', Object.keys(response.data));
+      console.error('=========================');
+
       return response.data;
     } catch (error) {
       console.error('Failed to update task:', error.message);
