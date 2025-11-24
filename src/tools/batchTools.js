@@ -535,7 +535,7 @@ export const batchUpdateUserStoriesTool = {
             }
           }
 
-          // Handle epic - first update the story, then link/unlink to epic separately
+          // Handle epic - automatically unlink from old epic if switching to new one
           let epicOperation = null;
           if (storyUpdate.epic !== undefined) {
             if (storyUpdate.epic.toLowerCase() === 'remove' || storyUpdate.epic.toLowerCase() === 'none') {
@@ -544,6 +544,12 @@ export const batchUpdateUserStoriesTool = {
               // Resolve epic identifier to get epic ID
               const epic = await resolveEpic(storyUpdate.epic, projectIdentifier);
               epicOperation = { action: 'link', epicId: epic.id };
+
+              // Check if story is already linked to a DIFFERENT epic
+              if (currentStory.epic && currentStory.epic !== epic.id) {
+                epicOperation.needsUnlink = true;
+                console.error(`Story #${currentStory.ref} is linked to epic ${currentStory.epic}, will unlink before linking to ${epic.id}`);
+              }
             }
           }
 
@@ -552,6 +558,11 @@ export const batchUpdateUserStoriesTool = {
           // Handle epic linking/unlinking after the main update
           if (epicOperation) {
             if (epicOperation.action === 'link') {
+              // Automatically unlink from old epic first if needed
+              if (epicOperation.needsUnlink) {
+                console.error(`Auto-unlinking story #${currentStory.ref} from old epic before linking to new one`);
+                await taigaService.unlinkStoryFromEpic(currentStory.id);
+              }
               await taigaService.linkStoryToEpic(currentStory.id, epicOperation.epicId);
             } else if (epicOperation.action === 'unlink') {
               await taigaService.unlinkStoryFromEpic(currentStory.id);
