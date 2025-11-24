@@ -4,38 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 Project Overview
 
-**Taiga MCP Server** is a highly modular Model Context Protocol server that provides a complete natural language interface for Taiga project management systems. The project uses modern Node.js ES module architecture, communicating with MCP clients via stdio transport, supporting enterprise-level project management features.
+**Taiga MCP Server** is a highly modular Model Context Protocol server that provides a complete natural language interface for Taiga project management systems. The project uses modern Node.js ES module architecture, supporting both stdio and HTTP/JSON-RPC transport modes for maximum flexibility and enterprise-level project management features.
 
 ### Core Features
-- **Complete Sprint Management** - Create, track, and analyze statistics
-- **Issue Lifecycle Management** - Issue and Sprint association tracking  
-- **Batch Operations Support** - Bulk creation of Issues, Stories, Tasks (up to 20 items)
+- **Dual Transport Modes** - Stdio (CLI/Claude Desktop) and HTTP/JSON-RPC (n8n integration)
+- **Complete Sprint Management** - Create, track, analyze statistics with 9 comprehensive tools
+- **Issue Lifecycle Management** - Issue and Sprint association tracking with fuzzy matching
+- **Enhanced Batch Operations** - Bulk creation and updates (7 tools supporting up to 20 items)
+- **Intelligent User Resolution** - Multi-format support (username, email, full name) with fuzzy matching
+- **Metadata Discovery System** - Self-documenting API with 5-minute caching for optimal performance
+- **Validation & Dry-Run Mode** - Pre-validate operations with detailed error messages and suggestions
 - **Advanced Query Syntax** - SQL-like syntax for precise data search and filtering
 - **Comment Collaboration System** - Complete team discussion and collaboration features
-- **File Attachment Management** - Upload, download, and manage project file resources
+- **File Attachment Management** - Upload, download, and manage project file resources (Base64-based)
 - **Epic Project Management** - Large-scale project epic-level feature organization and management
 - **Wiki Knowledge Management** - Complete project documentation and knowledge base system
-- **Modular Architecture** - 48 MCP tools across 12 functional categories
-- **Professional Testing Framework** - Unit tests, integration tests, MCP protocol tests, specialized feature tests
+- **Modular Architecture** - 58 MCP tools across 13 functional categories
+- **Professional Testing Framework** - 30 test files with unit, integration, MCP protocol, and specialized feature tests
 - **AI-Assisted Development** - Demonstrates human-AI collaborative software development potential
 
 ## 📋 Common Commands
 
 ### Development and Running
 ```bash
-npm start                    # Start MCP server (stdio mode)
+npm start                    # Start MCP server (stdio mode for Claude Desktop)
+npm start:http              # Start HTTP server (JSON-RPC mode for n8n integration)
 npm test                     # Run default test suite (unit + quick tests)
 npm run test:unit           # Run unit tests (no external dependencies)
 npm run test:quick          # Run quick functional tests
 npm run test:basic          # Run MCP protocol tests (complex)
 npm run test:integration    # Run Taiga API integration tests (requires credentials)
-npm run test:full          # Run all test suites
+npm run test:full          # Run all test suites (30 test files)
 node test/batchTest.js     # Run batch operations specialized tests
 node test/advancedQueryTest.js  # Run advanced query specialized tests
 node test/commentTest.js      # Run comment system specialized tests
 node test/attachmentTest.js   # Run file attachment specialized tests
-node test/base64UploadTest.js # Run Base64 file upload specialized tests (new)
+node test/base64UploadTest.js # Run Base64 file upload specialized tests
 node test/epicTest.js         # Run Epic management specialized tests
+node test/wikiTest.js         # Run Wiki management specialized tests
 ```
 
 ### Package Management and Publishing
@@ -153,37 +159,93 @@ TAIGA_PASSWORD=your_password
 }
 ```
 
+### n8n Integration Configuration (HTTP/JSON-RPC Mode)
+
+**NEW v1.9+**: The server supports HTTP/JSON-RPC transport for n8n workflow automation.
+
+#### Running HTTP Server
+```bash
+npm start:http              # Starts on http://localhost:3000
+# Or with Docker:
+docker-compose up taiga-mcp-http
+```
+
+#### n8n HTTP Request Configuration
+```json
+{
+  "method": "POST",
+  "url": "http://localhost:3000/mcp",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "method": "tools/call",
+    "params": {
+      "name": "createTask",
+      "arguments": {
+        "projectIdentifier": "my-project",
+        "userStoryRef": "#123",
+        "subject": "New task",
+        "description": "Task description"
+      }
+    }
+  }
+}
+```
+
+#### Available MCP Methods
+- `initialize` - Initialize MCP connection
+- `tools/list` - Get list of all available tools
+- `tools/call` - Execute a specific tool
+
+#### Health Check
+```bash
+curl http://localhost:3000/health
+# Response: {"status":"ok","timestamp":"2025-11-24T..."}
+```
+
+**Features:**
+- Automatic Zod → JSON Schema conversion for tool definitions
+- Full MCP protocol compliance over HTTP
+- Stateless request/response model
+- Environment variables from .env file
+
 ## 🏗️ Architecture Structure
 
-### Modular Design (v1.5.0+)
+### Modular Design (v1.5.0+, Enhanced v1.9.14)
 ```
 src/
-├── index.js              # Main MCP server entry point (130 lines)
-├── constants.js          # Unified constant management (76 lines)
-├── utils.js             # Utility function library (120 lines)
+├── index.js              # Stdio MCP server entry point (130 lines)
+├── httpServer.js         # HTTP/JSON-RPC server for n8n (420 lines) [NEW v1.9+]
+├── constants.js          # Unified constant management (200+ lines)
+├── utils.js             # Enhanced utility library (800+ lines)
 ├── taigaAuth.js         # Authentication management
-├── taigaService.js      # API service layer (420 lines)
+├── taigaService.js      # Comprehensive API service layer (1,594 lines)
+├── userResolution.js    # Intelligent user resolution with fuzzy matching (272 lines) [NEW v1.9+]
+├── metadataService.js   # Metadata discovery & 5-min caching (408 lines) [NEW v1.9+]
+├── validation.js        # Validation & dry-run system (385 lines) [NEW v1.9+]
 ├── query/               # Advanced query system
 │   ├── QueryParser.js   # SQL-like query syntax parser
 │   ├── QueryExecutor.js # Query execution engine
 │   └── queryGrammar.js  # Query syntax definitions
-└── tools/               # MCP tool modules
+└── tools/               # MCP tool modules (13 categories, 58 tools)
     ├── index.js         # Tool registry center
-    ├── authTools.js     # Authentication tools
-    ├── projectTools.js  # Project management tools
-    ├── sprintTools.js   # Sprint management tools
-    ├── issueTools.js    # Issue management tools
-    ├── userStoryTools.js # User story tools
-    ├── taskTools.js     # Task management tools
-    ├── batchTools.js    # Batch operation tools
-    ├── advancedSearchTools.js # Advanced search tools
-    ├── commentTools.js  # Comment system tools
-    ├── attachmentTools.js # File attachment tools
-    ├── epicTools.js     # Epic management tools
-    └── wikiTools.js     # Wiki management tools
+    ├── authTools.js     # Authentication tools (1 tool)
+    ├── projectTools.js  # Project management tools (2 tools)
+    ├── sprintTools.js   # Sprint management tools (9 tools) [ENHANCED]
+    ├── issueTools.js    # Issue management tools (6 tools)
+    ├── userStoryTools.js # User story tools (6 tools)
+    ├── taskTools.js     # Task management tools (3 tools)
+    ├── batchTools.js    # Batch operation tools (7 tools) [ENHANCED - was 3]
+    ├── advancedSearchTools.js # Advanced search tools (3 tools)
+    ├── commentTools.js  # Comment system tools (4 tools)
+    ├── attachmentTools.js # File attachment tools (4 tools)
+    ├── epicTools.js     # Epic management tools (6 tools)
+    ├── wikiTools.js     # Wiki management tools (6 tools)
+    └── metadataTools.js # Metadata discovery tools (5 tools) [NEW v1.9+]
 ```
 
-### MCP Tool Categories (48 tools)
+### MCP Tool Categories (58 tools)
 
 #### 🔐 Authentication Tools (1 tool)
 - `authenticate` - Taiga user authentication
@@ -192,11 +254,16 @@ src/
 - `listProjects` - List user projects
 - `getProject` - Get project details (supports ID and slug)
 
-#### 🏃 Sprint Management (4 tools)
+#### 🏃 Sprint Management (9 tools) - **Enhanced with Advanced Features**
 - `listMilestones` - List project Sprints (milestones)
+- `getMilestone` - Get single milestone by identifier (ID, name, or fuzzy match)
 - `getMilestoneStats` - Sprint statistics (progress, completion rate)
 - `createMilestone` - Create new Sprint
+- `updateMilestone` - Update Sprint properties (name, dates, status)
+- `deleteMilestone` - Delete Sprint (with safety checks)
 - `getIssuesByMilestone` - Get all issues in a Sprint
+- `getUserStoriesByMilestone` - Get all user stories in a Sprint
+- `findSprint` - User-friendly Sprint search with fuzzy matching
 
 #### 🐛 Issue Management (6 tools)
 - `listIssues` - List project issues (with Sprint information)
@@ -219,10 +286,14 @@ src/
 - `getTask` - Get task details (supports ID and reference number)
 - `updateTask` - Update task properties (subject, description, status, assignee, tags)
 
-#### 🚀 Batch Operations (3 tools)
+#### 🚀 Batch Operations (7 tools) - **Enhanced with Update Operations**
 - `batchCreateIssues` - Bulk create Issues (up to 20 items)
 - `batchCreateUserStories` - Bulk create user stories
 - `batchCreateTasks` - Bulk create tasks (linked to specific Story)
+- `batchUpdateTasks` - Update multiple tasks at once (status, assignee, due dates)
+- `batchUpdateUserStories` - Bulk update user stories (supports epic, dueDate, status)
+- `batchAssign` - Assign multiple items (tasks/stories/issues) to a user
+- `batchUpdateDueDates` - Set due dates with flexible formats (relative/absolute/sprint-end)
 
 #### 🔍 Advanced Search (3 tools) - **New Feature**
 - `advancedSearch` - Advanced query syntax search (SQL-like syntax)
@@ -259,21 +330,44 @@ src/
 - `deleteWikiPage` - Delete Wiki pages (irreversible operation)
 - `watchWikiPage` - Watch/unwatch Wiki page change notifications
 
-### Testing Architecture
+#### 🔍 Metadata Discovery (5 tools) - **NEW v1.9+ - Self-Documenting API**
+- `getProjectMetadata` - Get complete project metadata in one call (with 5-min caching)
+- `listProjectMembers` - List all members with all identifier formats (username, email, full name)
+- `getAvailableStatuses` - Get available statuses by entity type (task, story, issue)
+- `listProjectMilestones` - List all sprints/milestones for reference
+- `clearMetadataCache` - Clear cached metadata (force refresh)
+
+**Key Features:**
+- Automatic 5-minute TTL caching for optimal performance
+- Parallel metadata fetching reduces latency
+- Enables validation and dry-run modes
+- Essential for understanding available options before operations
+
+### Testing Architecture (30 test files)
 ```
 test/
-├── README.md           # Testing documentation
-├── unitTest.js        # Unit tests (11 tests, 100% pass)
-├── quickTest.js       # Quick functional tests (4 tests)
-├── mcpTest.js         # MCP protocol tests (8 tests, complex)
-├── integration.js     # Taiga API integration tests (requires credentials)
-├── batchTest.js       # Batch operations tests (9 tests, 100% pass)
-├── advancedQueryTest.js # Advanced query tests (11 tests, 100% pass)
-├── commentTest.js     # Comment system tests (10 tests, 100% pass)
-├── attachmentTest.js  # File attachment tests (10 tests, 100% pass)
-├── epicTest.js        # Epic management tests (10 tests, 100% pass)
-├── wikiTest.js        # Wiki management tests
-└── runTests.js        # Comprehensive test runner
+├── README.md           # Comprehensive testing documentation
+├── runTests.js        # Orchestrates all test suites
+│
+├── Core Test Suites (4 levels)
+│   ├── unitTest.js              # 11 tests, no external dependencies (100% pass)
+│   ├── quickTest.js             # 4 tests, MCP server creation
+│   ├── mcpTest.js               # 8 tests, protocol compliance
+│   └── integration.js           # Real Taiga API tests (requires credentials)
+│
+├── Feature-Specific Tests (9 specialized suites)
+│   ├── batchTest.js             # Batch operations (9 tests, 100% pass)
+│   ├── advancedQueryTest.js     # Query syntax (11 tests, 100% pass)
+│   ├── commentTest.js           # Comment system (10 tests, 100% pass)
+│   ├── attachmentTest.js        # Attachments (10 tests, 100% pass)
+│   ├── base64UploadTest.js      # Base64 file uploads
+│   ├── epicTest.js              # Epic management (10 tests, 100% pass)
+│   ├── wikiTest.js              # Wiki functionality
+│   ├── sprintUpdateDeleteTest.js # Sprint CRUD operations
+│   └── milestoneIdentifierTest.js # Milestone resolution
+│
+└── Debug/Development Tests (17 additional files)
+    └── debugCommentTest.js, commentHistoryTest.js, etc.
 ```
 
 ## 🔧 Development Guidelines
@@ -302,18 +396,47 @@ return createErrorResponse(ERROR_MESSAGES.PROJECT_NOT_FOUND);
 ```
 
 ### Common Utility Functions
+
+#### Core Utilities (utils.js)
 - `resolveProject()` - Smart project resolution (ID/slug/name)
+- `resolveMilestone()` - Sprint resolution with fuzzy matching
+- `findSprint()` - User-friendly sprint search wrapper
 - `formatDate()` - Unified date formatting
 - `calculateCompletionPercentage()` - Completion percentage calculation
 - `createSuccessResponse()` / `createErrorResponse()` - Response formatting
+- `levenshteinDistance()` - String similarity calculation for fuzzy matching
+
+#### User Resolution System (userResolution.js) - **NEW v1.9+**
+- `resolveUser()` - Intelligent multi-format user resolution
+  - Supports: username, email, full name (exact + fuzzy), user ID
+  - Configurable similarity threshold (default: 70%)
+  - Detailed error messages with all available users
+- `resolveUserBatch()` - Batch user resolution for performance
+
+#### Metadata Service (metadataService.js) - **NEW v1.9+**
+- `getProjectMetadata()` - Complete metadata in one call
+- `getProjectMembers()` - All members with caching
+- `getAvailableStatuses()` - Status lists by entity type
+- `getProjectMilestones()` - Sprint/milestone catalog
+- `clearMetadataCache()` - Force cache refresh
+- **5-minute TTL caching** for optimal performance
+
+#### Validation System (validation.js) - **NEW v1.9+**
+- `validateTask()` - Pre-validate task data before API calls
+- `validateUserStory()` - Validate story data with field resolution
+- `validateIssue()` - Validate issue data
+- `validateWithDryRun()` - Preview resolved data without creating
+- Returns: `{ isValid, errors, warnings, suggestions, resolvedData }`
 
 ## 📊 Code Quality Metrics
 
 ### Modularization Level
+- **Total Source Lines**: ~9,600 lines across all src/ files
 - **Main File Reduction**: 800+ lines → 130 lines (83% reduction)
-- **Feature Separation**: 12 independent tool modules
-- **Test Coverage**: 4 testing levels
-- **Documentation**: Complete API and architecture documentation
+- **Feature Separation**: 13 independent tool modules (58 total tools)
+- **Test Coverage**: 30 test files across 4 testing levels
+- **Documentation**: Complete API, architecture docs, and IMPROVEMENTS.md
+- **Transport Modes**: Dual support (stdio + HTTP/JSON-RPC)
 
 ### Development Workflow
 1. **Quick Validation**: `npm test` (unit + quick tests)
@@ -391,6 +514,30 @@ This project demonstrates the powerful potential of human-AI collaborative devel
 
 This project is a successful case study of "inspired by" open source development, showing how to achieve significant innovation and improvement while maintaining legal compliance.
 
+## 🆕 Recent Major Improvements (v1.9.x)
+
+**See `IMPROVEMENTS.md` for comprehensive details on recent enhancements.**
+
+### Key Problems Solved
+1. **User Assignment Issues** → Intelligent multi-format user resolution with fuzzy matching
+2. **Generic Error Messages** → Field-specific errors with context and suggestions
+3. **Batch Operation Performance** → 4 new batch update tools for efficient bulk operations
+4. **Identifier Resolution Confusion** → Enhanced fuzzy matching for all identifiers
+5. **Metadata Discovery** → 5 new tools with automatic caching (5-min TTL)
+6. **Inconsistent API Responses** → Comprehensive validation system with dry-run mode
+
+### New Capabilities Added
+- **userResolution.js** (272 lines) - Multi-format user resolution (username, email, full name, ID)
+- **metadataService.js** (408 lines) - Complete metadata discovery with caching
+- **validation.js** (385 lines) - Pre-validation system with detailed feedback
+- **httpServer.js** (420 lines) - HTTP/JSON-RPC transport for n8n integration
+- **7 Batch Operation Tools** - Including batchUpdateTasks, batchUpdateUserStories, batchAssign, batchUpdateDueDates
+- **9 Sprint Management Tools** - Enhanced with findSprint, updateMilestone, deleteMilestone
+- **5 Metadata Discovery Tools** - getProjectMetadata, listProjectMembers, getAvailableStatuses, etc.
+
+### Backward Compatibility
+All improvements are **fully backward compatible**. Existing tools continue to work unchanged while benefiting from enhanced error handling and validation.
+
 ## 📚 Extended Documentation
 
 **Complete technical documentation and user guides are available on the project Wiki:**
@@ -407,3 +554,466 @@ This project is a successful case study of "inspired by" open source development
 1. [Installation Guide](https://github.com/greddy7574/taigaMcpServer/wiki/Installation-Guide) - Essential for new users
 2. [API Reference](https://github.com/greddy7574/taigaMcpServer/wiki/API-Reference) - Complete API documentation
 3. [CICD Automation](https://github.com/greddy7574/taigaMcpServer/wiki/CICD-Automation) - Automated publishing workflow
+
+## 🔌 Taiga API Reference
+
+This section documents the Taiga REST API as used by this MCP server. The implementation in this project demonstrates best practices for working with Taiga's API.
+
+### API Base Configuration
+
+```javascript
+// Default Taiga API URL (can be self-hosted)
+TAIGA_API_URL=https://api.taiga.io/api/v1
+
+// Authentication (used for all requests)
+TAIGA_USERNAME=your_username
+TAIGA_PASSWORD=your_password
+```
+
+### Authentication
+
+**Endpoint**: `/auth` (handled by `taigaAuth.js`)
+
+**Method**: POST
+
+**Request**:
+```json
+{
+  "type": "normal",
+  "username": "your_username",
+  "password": "your_password"
+}
+```
+
+**Response**:
+```json
+{
+  "auth_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "id": 123,
+  "username": "your_username",
+  "full_name": "Your Name",
+  "email": "your@email.com"
+}
+```
+
+**Implementation Pattern**:
+- Auth token is cached for the session
+- Token is included in all subsequent requests via `Authorization: Bearer {token}` header
+- Automatic re-authentication on token expiration
+
+### Core API Endpoints
+
+#### Projects API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/projects` | GET | List user's projects | ✅ Yes |
+| `/projects/{id}` | GET | Get project details | ❌ No |
+| `/projects` | POST | Create project | ❌ No |
+
+**Query Parameters**:
+- `member={userId}` - Filter projects by member
+- `page={n}` - Page number (1-indexed)
+- `page_size={n}` - Items per page (default: 30, max: 100)
+
+**Project Object Structure**:
+```json
+{
+  "id": 123,
+  "slug": "project-slug",
+  "name": "Project Name",
+  "description": "Project description",
+  "created_date": "2025-01-01T00:00:00Z",
+  "modified_date": "2025-01-15T00:00:00Z",
+  "owner": {...},
+  "members": [...],
+  "is_private": true,
+  "total_milestones": 5,
+  "total_story_points": 100.0
+}
+```
+
+#### User Stories API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/userstories` | GET | List user stories | ✅ Yes |
+| `/userstories/{id}` | GET | Get story details | ❌ No |
+| `/userstories` | POST | Create user story | ❌ No |
+| `/userstories/{id}` | PATCH | Update user story | ❌ No |
+| `/userstories/{id}` | DELETE | Delete user story | ❌ No |
+
+**Query Parameters**:
+- `project={projectId}` - Filter by project (required for list)
+- `milestone={milestoneId}` - Filter by sprint
+- `status={statusId}` - Filter by status
+- `assigned_to={userId}` - Filter by assignee
+
+**User Story Object**:
+```json
+{
+  "id": 456,
+  "ref": 123,
+  "subject": "Story title",
+  "description": "Story description",
+  "project": 123,
+  "milestone": 789,
+  "status": 1,
+  "assigned_to": 456,
+  "assigned_to_extra_info": {
+    "username": "john.doe",
+    "full_name_display": "John Doe"
+  },
+  "tags": ["frontend", "api"],
+  "is_closed": false,
+  "total_points": 5.0,
+  "epic": 111
+}
+```
+
+#### Tasks API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/tasks` | GET | List tasks | ✅ Yes |
+| `/tasks/{id}` | GET | Get task details | ❌ No |
+| `/tasks` | POST | Create task | ❌ No |
+| `/tasks/{id}` | PATCH | Update task | ❌ No |
+
+**Query Parameters**:
+- `project={projectId}` - Filter by project
+- `user_story={storyId}` - Filter by user story
+- `milestone={milestoneId}` - Filter by sprint
+- `status={statusId}` - Filter by status
+
+**Task Object**:
+```json
+{
+  "id": 789,
+  "ref": 45,
+  "subject": "Task title",
+  "description": "Task description",
+  "project": 123,
+  "user_story": 456,
+  "milestone": 789,
+  "status": 1,
+  "assigned_to": 456,
+  "assigned_to_extra_info": {
+    "username": "john.doe",
+    "full_name_display": "John Doe"
+  },
+  "tags": ["bug", "urgent"],
+  "is_closed": false,
+  "due_date": "2025-12-31"
+}
+```
+
+#### Issues API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/issues` | GET | List issues | ✅ Yes |
+| `/issues/{id}` | GET | Get issue details | ❌ No |
+| `/issues` | POST | Create issue | ❌ No |
+| `/issues/{id}` | PATCH | Update issue | ❌ No |
+
+**Query Parameters**:
+- `project={projectId}` - Filter by project
+- `milestone={milestoneId}` - Filter by sprint
+- `status={statusId}` - Filter by status
+- `type={typeId}` - Filter by issue type
+- `severity={severityId}` - Filter by severity
+- `priority={priorityId}` - Filter by priority
+
+**Issue Object**:
+```json
+{
+  "id": 321,
+  "ref": 67,
+  "subject": "Issue title",
+  "description": "Issue description",
+  "project": 123,
+  "milestone": 789,
+  "status": 1,
+  "type": 1,
+  "severity": 2,
+  "priority": 3,
+  "assigned_to": 456,
+  "tags": ["backend", "database"],
+  "is_closed": false
+}
+```
+
+#### Milestones/Sprints API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/milestones` | GET | List milestones | ✅ Yes |
+| `/milestones/{id}` | GET | Get milestone details | ❌ No |
+| `/milestones` | POST | Create milestone | ❌ No |
+| `/milestones/{id}` | PATCH | Update milestone | ❌ No |
+| `/milestones/{id}` | DELETE | Delete milestone | ❌ No |
+
+**Query Parameters**:
+- `project={projectId}` - Filter by project (required)
+- `closed={true|false}` - Filter by open/closed status
+
+**Milestone Object**:
+```json
+{
+  "id": 789,
+  "name": "Sprint 1",
+  "slug": "sprint-1",
+  "project": 123,
+  "estimated_start": "2025-01-01",
+  "estimated_finish": "2025-01-14",
+  "closed": false,
+  "disponibility": 0.0,
+  "total_points": 25.0,
+  "closed_points": 10.0,
+  "user_stories": [456, 457, 458]
+}
+```
+
+#### Epics API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/epics` | GET | List epics | ✅ Yes |
+| `/epics/{id}` | GET | Get epic details | ❌ No |
+| `/epics` | POST | Create epic | ❌ No |
+| `/epics/{id}` | PATCH | Update epic | ❌ No |
+| `/epics/{id}/related_userstories` | GET | Get epic's stories | ✅ Yes |
+
+**Epic Object**:
+```json
+{
+  "id": 111,
+  "ref": 5,
+  "subject": "Epic title",
+  "description": "Epic description",
+  "project": 123,
+  "status": 1,
+  "epics_order": 1,
+  "color": "#FF0000",
+  "tags": ["feature"],
+  "user_stories": [456, 457]
+}
+```
+
+#### Wiki API
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/wiki` | GET | List wiki pages | ✅ Yes |
+| `/wiki/{id}` | GET | Get wiki page | ❌ No |
+| `/wiki` | POST | Create wiki page | ❌ No |
+| `/wiki/{id}` | PATCH | Update wiki page | ❌ No |
+| `/wiki/{id}` | DELETE | Delete wiki page | ❌ No |
+
+**Wiki Page Object**:
+```json
+{
+  "id": 999,
+  "slug": "home",
+  "content": "# Wiki content in Markdown",
+  "project": 123,
+  "owner": 456,
+  "created_date": "2025-01-01T00:00:00Z",
+  "modified_date": "2025-01-15T00:00:00Z",
+  "watchers": [456, 789]
+}
+```
+
+#### Comments API (History System)
+
+| Endpoint | Method | Purpose | Pagination |
+|----------|--------|---------|------------|
+| `/history/{type}/{id}` | GET | Get item history/comments | ✅ Yes |
+| `/history/{type}/{id}` | POST | Add comment | ❌ No |
+| `/history/{type}/{id}` | PATCH | Edit comment | ❌ No |
+| `/history/{type}/{id}` | DELETE | Delete comment | ❌ No |
+
+**Supported Types**: `issue`, `userstory`, `task`, `epic`, `wiki`
+
+**Comment Object**:
+```json
+{
+  "id": "comment-123",
+  "comment": "Comment text",
+  "comment_html": "<p>Comment text</p>",
+  "user": {
+    "username": "john.doe",
+    "full_name": "John Doe"
+  },
+  "created_at": "2025-01-15T10:30:00Z",
+  "delete_comment_date": null,
+  "delete_comment_user": null
+}
+```
+
+#### Attachments API
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/issues/attachments` | POST | Upload issue attachment |
+| `/userstories/attachments` | POST | Upload story attachment |
+| `/tasks/attachments` | POST | Upload task attachment |
+| `/issues/attachments/{id}` | GET | Download attachment |
+| `/issues/attachments/{id}` | DELETE | Delete attachment |
+
+**Upload Format** (v1.9.8+):
+```json
+{
+  "project": 123,
+  "object_id": 456,
+  "attached_file": "data:image/png;base64,iVBORw0KG...",
+  "description": "File description"
+}
+```
+
+**Attachment Object**:
+```json
+{
+  "id": 888,
+  "project": 123,
+  "attached_file": "https://taiga.io/media/attachments/...",
+  "name": "screenshot.png",
+  "size": 12345,
+  "description": "File description",
+  "is_deprecated": false,
+  "created_date": "2025-01-15T10:00:00Z",
+  "modified_date": "2025-01-15T10:00:00Z",
+  "from_comment": false,
+  "owner": 456
+}
+```
+
+#### Metadata Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/userstory-statuses` | GET | Get user story statuses |
+| `/task-statuses` | GET | Get task statuses |
+| `/issue-statuses` | GET | Get issue statuses |
+| `/priorities` | GET | Get priority options |
+| `/severities` | GET | Get severity options |
+| `/issue-types` | GET | Get issue types |
+| `/memberships` | GET | Get project members |
+| `/users/me` | GET | Get current user info |
+
+**Query Parameters**:
+- `project={projectId}` - Filter by project (required for most)
+
+### Pagination Strategy
+
+This project implements comprehensive pagination handling:
+
+```javascript
+// Automatic pagination in fetchAllPages() - src/taigaService.js:31
+- Uses page_size=100 for optimal performance
+- Fetches all pages automatically
+- Checks x-pagination-count header
+- Stops when results < page_size
+```
+
+**Best Practices**:
+1. Always use `page_size=100` to minimize API calls
+2. Check `x-pagination-count` and `x-pagination-next` headers
+3. Handle empty result sets gracefully
+4. Cache results when appropriate (see metadataService.js)
+
+### Error Handling Patterns
+
+```javascript
+// Consistent error handling across all API calls
+try {
+  const client = await createAuthenticatedClient();
+  const response = await client.get(endpoint);
+  return response.data;
+} catch (error) {
+  console.error('Operation failed:', error.message);
+  throw new Error(ERROR_MESSAGES.OPERATION_FAILED);
+}
+```
+
+### Rate Limiting & Performance
+
+**Implementation Strategies**:
+1. **Caching**: 5-minute TTL for metadata (metadataService.js)
+2. **Batch Operations**: Reduce API calls with batch tools
+3. **Parallel Fetching**: Use Promise.all() for independent requests
+4. **Pagination**: Fetch all pages efficiently with page_size=100
+
+**Taiga API Limits** (typically):
+- Rate limit: ~100 requests per minute
+- Response size: ~10MB maximum
+- Timeout: 30 seconds per request
+
+### Advanced Features
+
+#### Fuzzy Matching
+```javascript
+// Levenshtein distance algorithm for identifier resolution
+- Configurable similarity threshold (default: 70%)
+- Used for users, sprints, statuses
+- See: utils.js:levenshteinDistance()
+```
+
+#### Validation System
+```javascript
+// Pre-validate before API calls
+- Resolves names to IDs
+- Validates field values
+- Dry-run mode available
+- See: validation.js
+```
+
+#### Identifier Resolution
+```javascript
+// Smart resolution of project/sprint/user identifiers
+- Supports: ID (numeric), slug (string), name (fuzzy)
+- Example: resolveProject("my-project") or resolveProject(123)
+- See: utils.js
+```
+
+### API Documentation Links
+
+**Official Taiga Documentation**:
+- **API Docs**: https://docs.taiga.io/api.html
+- **API Source**: https://github.com/taigaio/taiga-back
+- **Frontend**: https://github.com/taigaio/taiga-front
+
+**This Project's Implementation**:
+- **API Service**: `src/taigaService.js` (1,594 lines)
+- **Auth Handler**: `src/taigaAuth.js`
+- **Constants**: `src/constants.js` (API_ENDPOINTS)
+- **Utilities**: `src/utils.js`, `src/userResolution.js`, `src/metadataService.js`
+
+### Common API Patterns in This Project
+
+1. **Project Resolution** (`resolveProject`)
+   - Try as numeric ID first
+   - Then try as slug
+   - Finally try fuzzy name match
+
+2. **User Resolution** (`resolveUser`)
+   - Try as numeric ID
+   - Try as username (exact)
+   - Try as email (exact)
+   - Try as full name (fuzzy match)
+
+3. **Milestone Resolution** (`resolveMilestone`)
+   - Try as numeric ID
+   - Try as exact name match
+   - Try as fuzzy name match (Levenshtein distance)
+
+4. **Metadata Caching** (`metadataService`)
+   - 5-minute TTL cache
+   - Parallel fetching
+   - Auto-refresh on expiration
+
+5. **Batch Operations** (`batchTools`)
+   - Maximum 20 items per batch
+   - `continueOnError` flag support
+   - Detailed success/failure reporting
