@@ -111,6 +111,34 @@ export async function resolveUserStory(userStoryIdentifier, projectIdentifier) {
 }
 
 /**
+ * Enrich user story with full milestone and epic details
+ * Fetches additional data from API if *_extra_info is not present
+ * @param {Object} userStory - User story object from Taiga API
+ * @returns {Promise<Object>} - User story with enriched milestone and epic data
+ */
+export async function enrichUserStoryWithDetails(userStory) {
+  // Enrich milestone if ID exists but extra_info is missing
+  if (userStory.milestone && !userStory.milestone_extra_info) {
+    try {
+      const milestone = await taigaService.getMilestone(userStory.milestone);
+      userStory.milestone_extra_info = {
+        id: milestone.id,
+        name: milestone.name,
+        slug: milestone.slug,
+        closed: milestone.closed
+      };
+    } catch (error) {
+      console.error(`Failed to fetch milestone ${userStory.milestone}:`, error.message);
+    }
+  }
+
+  // Note: Epic information is already available in userStory.epics array
+  // No need to fetch epic separately - enrichUserStoryObject() handles it
+
+  return userStory;
+}
+
+/**
  * Resolve task identifier to task object
  * Handles direct IDs and reference numbers (with # prefix)
  * @param {string} taskIdentifier - Task ID or reference number
@@ -585,9 +613,19 @@ export function formatProjectList(projects) {
  * @returns {string} - Formatted user story list
  */
 export function formatUserStoryList(userStories) {
-  return userStories.map(us => 
-    `- #${us.ref}: ${us.subject} (Status: ${getSafeValue(us.status_extra_info?.name)})`
-  ).join('\n');
+  return userStories.map(us => {
+    const milestoneName = us.milestone_extra_info?.name ||
+                         (us.milestone ? `Milestone #${us.milestone}` : 'No milestone');
+    const epicName = us.epic_extra_info?.subject ||
+                    (us.epic ? `Epic #${us.epic}` : 'No epic');
+
+    return `- #${us.ref}: ${us.subject}
+  Status: ${getSafeValue(us.status_extra_info?.name)}
+  Points: ${getSafeValue(us.total_points, 'Not set')}
+  Milestone: ${milestoneName}
+  Epic: ${epicName}
+  Assigned: ${getSafeValue(us.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}`;
+  }).join('\n\n');
 }
 
 /**
@@ -735,6 +773,85 @@ export function enrichTaskObject(task) {
 }
 
 /**
+ * Enrich milestone object with metadata
+ * @param {Object} milestoneInfo - Milestone extra info from Taiga API
+ * @param {number|null} milestoneId - Milestone ID from user story
+ * @returns {Object|null} - Enriched milestone object or null
+ */
+function enrichMilestoneObject(milestoneInfo, milestoneId = null) {
+  if (!milestoneInfo && !milestoneId) {
+    return null;
+  }
+
+  // If we have milestone_extra_info, use it
+  if (milestoneInfo) {
+    return {
+      id: milestoneInfo.id,
+      name: milestoneInfo.name,
+      slug: milestoneInfo.slug || null,
+      closed: milestoneInfo.closed || false
+    };
+  }
+
+  // If we only have milestone ID, return minimal object
+  if (milestoneId) {
+    return {
+      id: milestoneId,
+      name: 'Unknown milestone',
+      slug: null,
+      closed: false
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Enrich epic object with metadata
+ * @param {Object} epicInfo - Epic extra info from Taiga API
+ * @param {number|null} epicId - Epic ID from user story
+ * @param {Array} epics - Epics array from user story (Taiga API format)
+ * @returns {Object|null} - Enriched epic object or null
+ */
+function enrichEpicObject(epicInfo, epicId = null, epics = null) {
+  // If we have an epics array (Taiga API format), use the first epic
+  if (epics && Array.isArray(epics) && epics.length > 0) {
+    const epic = epics[0]; // Take first epic (user stories can have multiple epics)
+    return {
+      id: epic.id,
+      ref: epic.ref,
+      subject: epic.subject,
+      color: epic.color || null,
+      epicsOrder: epic.epics_order || 0
+    };
+  }
+
+  // If we have epic_extra_info, use it
+  if (epicInfo) {
+    return {
+      id: epicInfo.id,
+      ref: epicInfo.ref,
+      subject: epicInfo.subject,
+      color: epicInfo.color || null,
+      epicsOrder: epicInfo.epics_order || 0
+    };
+  }
+
+  // If we only have epic ID, return minimal object
+  if (epicId) {
+    return {
+      id: epicId,
+      ref: null,
+      subject: 'Unknown epic',
+      color: null,
+      epicsOrder: 0
+    };
+  }
+
+  return null;
+}
+
+/**
  * Enrich user story object with full metadata
  * @param {Object} userStory - User story object from Taiga API
  * @param {Array} tasks - Optional array of tasks for this user story
@@ -752,6 +869,8 @@ export function enrichUserStoryObject(userStory, tasks = null) {
     assignedTo: enrichUserObject(userStory.assigned_to_extra_info),
     owner: enrichUserObject(userStory.owner_extra_info),
     priority: enrichPriorityObject(userStory.priority_extra_info),
+    milestone: enrichMilestoneObject(userStory.milestone_extra_info, userStory.milestone),
+    epic: enrichEpicObject(userStory.epic_extra_info, userStory.epic, userStory.epics),
     points: userStory.total_points || null,
     dueDate: userStory.due_date || null,
     dueDateStatus: calculateDueDateStatus(userStory.due_date, isClosed),

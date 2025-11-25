@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { TaigaService } from '../taigaService.js';
 import { RESPONSE_TEMPLATES, SUCCESS_MESSAGES, ERROR_MESSAGES, STATUS_LABELS } from '../constants.js';
-import { 
+import {
   resolveProjectId,
   findIdByName,
   formatUserStoryList,
@@ -13,7 +13,8 @@ import {
   createErrorResponse,
   createSuccessResponse,
   formatDateTime,
-  resolveUserStory
+  resolveUserStory,
+  enrichUserStoryWithDetails
 } from '../utils.js';
 
 const taigaService = new TaigaService();
@@ -103,7 +104,22 @@ export const getUserStoryTool = {
   },
   handler: async ({ userStoryIdentifier, projectIdentifier }) => {
     try {
-      const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
+      let userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
+
+      // Enrich with full milestone and epic details if needed
+      userStory = await enrichUserStoryWithDetails(userStory);
+
+      // Extract milestone information
+      const milestoneName = userStory.milestone_extra_info?.name ||
+                           (userStory.milestone ? `Milestone #${userStory.milestone}` : 'No milestone');
+
+      // Extract epic information from epics array (Taiga returns epics as array, not single field)
+      const epicName = userStory.epics && userStory.epics.length > 0
+        ? userStory.epics[0].subject
+        : 'No epic';
+      const epicId = userStory.epics && userStory.epics.length > 0
+        ? userStory.epics[0].id
+        : null;
 
       const userStoryDetails = `User Story Details: #${userStory.ref} - ${userStory.subject}
 
@@ -113,9 +129,10 @@ Basic Information:
 - Points: ${getSafeValue(userStory.total_points, 'Not set')}
 - Owner: ${getSafeValue(userStory.owner_extra_info?.full_name)}
 
-Assignment:
+Assignment & Organization:
 - Assigned to: ${getSafeValue(userStory.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
-- Milestone: ${getSafeValue(userStory.milestone_extra_info?.name, 'No milestone')}
+- Milestone: ${milestoneName}${userStory.milestone ? ` (ID: ${userStory.milestone})` : ''}
+- Epic: ${epicName}${epicId ? ` (ID: ${epicId})` : ''}
 
 Timeline:
 - Created: ${formatDateTime(userStory.created_date)}
@@ -237,6 +254,95 @@ Project: ${getSafeValue(userStory.project_extra_info?.name)}`;
       return createSuccessResponse(deletionDetails);
     } catch (error) {
       return createErrorResponse(`Failed to delete user story: ${error.message}`);
+    }
+  }
+};
+
+/**
+ * Tool to get multiple user stories in a single call (batch operation)
+ */
+export const batchGetUserStoriesTool = {
+  name: 'batchGetUserStories',
+  schema: {
+    projectIdentifier: z.string().describe('Project ID or slug'),
+    userStoryIdentifiers: z.array(z.string()).describe('Array of user story identifiers (IDs or reference numbers like "123", "#45", or "45")'),
+  },
+  handler: async ({ projectIdentifier, userStoryIdentifiers }) => {
+    try {
+      // Resolve project ID first
+      const projectId = await resolveProjectId(projectIdentifier);
+
+      // Resolve all user stories in parallel
+      const promises = userStoryIdentifiers.map(async (identifier) => {
+        try {
+          let userStory = await resolveUserStory(identifier, projectIdentifier);
+          // Enrich with full milestone and epic details
+          userStory = await enrichUserStoryWithDetails(userStory);
+          return {
+            success: true,
+            identifier: identifier,
+            data: userStory
+          };
+        } catch (error) {
+          return {
+            success: false,
+            identifier: identifier,
+            error: error.message
+          };
+        }
+      });
+
+      const results = await Promise.all(promises);
+
+      // Separate successful and failed results
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+
+      // Build response with enriched data
+      const enrichedUserStories = successful.map(result => {
+        const us = result.data;
+        // Extract epic from epics array (Taiga returns epics as array)
+        const epicName = us.epics && us.epics.length > 0 ? us.epics[0].subject : 'No epic';
+        const epicId = us.epics && us.epics.length > 0 ? us.epics[0].id : null;
+
+        return {
+          ref: us.ref,
+          id: us.id,
+          subject: us.subject,
+          status: us.status_extra_info?.name || 'Unknown',
+          points: us.total_points || 0,
+          milestone: us.milestone_extra_info?.name || (us.milestone ? `Milestone #${us.milestone}` : 'No milestone'),
+          milestoneId: us.milestone || null,
+          epic: epicName,
+          epicId: epicId,
+          assignedTo: us.assigned_to_extra_info?.full_name_display || STATUS_LABELS.UNASSIGNED,
+          tags: us.tags || [],
+          isClosed: us.is_closed || false
+        };
+      });
+
+      const summary = `Batch Get User Stories Results:
+Total requested: ${userStoryIdentifiers.length}
+Successful: ${successful.length}
+Failed: ${failed.length}
+
+${successful.length > 0 ? `Successfully Retrieved User Stories:\n${enrichedUserStories.map(us =>
+  `  #${us.ref} - ${us.subject}
+    - Status: ${us.status}
+    - Points: ${us.points}
+    - Milestone: ${us.milestone}
+    - Epic: ${us.epic}
+    - Assigned to: ${us.assignedTo}
+    - Tags: ${us.tags.join(', ') || 'None'}`
+).join('\n\n')}` : ''}
+
+${failed.length > 0 ? `\nFailed to Retrieve:\n${failed.map(f =>
+  `  ${f.identifier}: ${f.error}`
+).join('\n')}` : ''}`;
+
+      return createSuccessResponse(summary);
+    } catch (error) {
+      return createErrorResponse(`Failed to batch get user stories: ${error.message}`);
     }
   }
 };
