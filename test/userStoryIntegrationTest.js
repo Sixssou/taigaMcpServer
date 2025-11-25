@@ -17,6 +17,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createUserStoryTool, getUserStoryTool, updateUserStoryTool, deleteUserStoryTool, listUserStoriesTool } from '../src/tools/userStoryTools.js';
+import { authenticateTool } from '../src/tools/authTools.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -97,6 +98,19 @@ class UserStoryIntegrationTest {
     console.log(`👤 User: ${process.env.TAIGA_USERNAME}\n`);
 
     try {
+      // Authenticate first to initialize the auth token
+      console.log('🔐 Authenticating with Taiga API...');
+      const authResult = await authenticateTool.handler({
+        username: process.env.TAIGA_USERNAME,
+        password: process.env.TAIGA_PASSWORD
+      });
+      const authResponse = this.parseToolResponse(authResult);
+      if (!authResponse.includes('Successfully authenticated')) {
+        console.error('❌ Authentication failed:', authResponse);
+        process.exit(1);
+      }
+      console.log('✅ Authentication successful\n');
+
       // Get project ID from environment or use default
       this.projectId = process.env.TEST_PROJECT_ID || process.env.TAIGA_PROJECT_ID;
 
