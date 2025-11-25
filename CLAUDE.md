@@ -115,12 +115,23 @@ git push origin master       # Push to GitHub Wiki
 
 ## ⚙️ Environment Configuration
 
-### Required .env File
+### Taiga Credentials (Two Methods)
+
+**Method 1: Environment Variables (Recommended for CI/CD and automation)**
+```bash
+export TAIGA_API_URL=https://api.taiga.io/api/v1
+export TAIGA_USERNAME=your_username
+export TAIGA_PASSWORD=your_password
+```
+
+**Method 2: .env File (Optional - for local development)**
 ```env
 TAIGA_API_URL=https://api.taiga.io/api/v1
-TAIGA_USERNAME=your_username  
+TAIGA_USERNAME=your_username
 TAIGA_PASSWORD=your_password
 ```
+
+**Note**: The application automatically uses environment variables if they are available. The `.env` file is only needed for local development if you prefer not to export variables manually.
 
 ### Claude Desktop Configuration
 
@@ -238,6 +249,42 @@ Cette section décrit comment Claude Code doit travailler sur ce projet de mani�
 2. **Tests systématiques** : Après chaque modification significative, lancer les tests pertinents
 3. **Feedback immédiat** : Rapporter les résultats des tests à l'utilisateur
 4. **Documentation à jour** : Mettre à jour CLAUDE.md après chaque changement de workflow
+
+### ⚡ Règles importantes pour les tests d'intégration
+
+**IMPORTANT - À LIRE AVANT DE LANCER LES TESTS :**
+
+1. **Variables d'environnement** : Les variables `TAIGA_API_URL`, `TAIGA_USERNAME`, et `TAIGA_PASSWORD` sont **déjà configurées** dans l'environnement d'exécution
+   - ❌ NE PAS chercher ou créer de fichier `.env`
+   - ❌ NE PAS vérifier si le fichier `.env` existe
+   - ✅ Les tests utilisent directement les variables d'environnement système
+
+2. **Dépendances npm** : Vérifier intelligemment avant d'installer
+   - ✅ Vérifier si `node_modules/` existe : `[ -d node_modules ] && echo "exists" || npm install`
+   - ❌ NE PAS lancer `npm install` systématiquement à chaque test
+   - ✅ Lancer `npm install` UNIQUEMENT si les dépendances sont manquantes
+
+3. **Lancement des tests** : Lancer directement sans vérifications inutiles
+   - ✅ `npm run test:userstory` - Lance directement les tests
+   - ✅ `npm run test:integration` - Lance les tests d'intégration complets
+   - ❌ NE PAS faire de vérifications préalables sur l'authentification
+   - ❌ NE PAS tester l'API avec curl avant de lancer les tests
+
+**Workflow recommandé pour lancer les tests d'intégration :**
+
+```bash
+# Vérifier et installer les dépendances si nécessaire (une seule fois)
+[ -d node_modules ] || npm install
+
+# Lancer directement les tests
+npm run test:userstory
+```
+
+**En cas d'erreur d'authentification (403) :**
+- C'est un problème de credentials côté utilisateur
+- Informer l'utilisateur que les identifiants Taiga sont incorrects
+- NE PAS chercher à créer un fichier .env
+- NE PAS proposer de solutions complexes
 
 ### Commandes essentielles pour Claude
 
@@ -382,16 +429,55 @@ npm test                   # Vérification rapide
 ./scripts/run-all-tests.sh # Validation complète
 ```
 
+#### Scénario 4 : Lancer les tests d'intégration (IMPORTANT)
+
+```bash
+# ⚡ WORKFLOW CORRECT pour les tests d'intégration
+
+# 1. Vérifier les dépendances (UNIQUEMENT si nécessaire)
+[ -d node_modules ] || npm install
+
+# 2. Lancer directement les tests (sans vérifications inutiles)
+npm run test:userstory     # Tests user story
+# OU
+npm run test:integration   # Tests d'intégration complets
+
+# ❌ NE PAS FAIRE :
+# - NE PAS chercher de fichier .env
+# - NE PAS lancer npm install à chaque fois
+# - NE PAS tester avec curl avant
+# - NE PAS vérifier l'authentification manuellement
+
+# ✅ À FAIRE :
+# - Les variables d'environnement sont déjà disponibles
+# - Lancer directement les tests
+# - Si erreur 403 : informer que les credentials sont incorrects
+```
+
+**Exemple de conversation correcte :**
+```
+User: Peux-tu lancer le test d'intégration sur les userstories
+
+Claude: Je lance les tests d'intégration des user stories.
+
+[Lance directement: npm run test:userstory]
+
+[Si succès] ✅ Tests passés avec succès
+[Si erreur 403] ❌ Erreur d'authentification - vérifiez vos identifiants Taiga
+```
+
 ### Commandes à NE PAS demander à l'utilisateur
 
 Claude doit lancer ces commandes **automatiquement** sans confirmation :
 
 ✅ **Toujours lancer automatiquement :**
-- `npm install` (si package.json a changé)
+- `npm install` (UNIQUEMENT si node_modules n'existe pas : `[ -d node_modules ] || npm install`)
 - `npm test` (après modifications de code)
 - `npm run test:unit` (tests unitaires)
 - `npm run test:quick` (tests rapides)
 - `npm run test:http` (tests HTTP)
+- `npm run test:userstory` (tests d'intégration user story)
+- `npm run test:integration` (tests d'intégration complets)
 - `./scripts/run-all-tests.sh` (validation complète)
 - `./scripts/stop-server.sh` (nettoyage)
 
@@ -400,6 +486,11 @@ Claude doit lancer ces commandes **automatiquement** sans confirmation :
 - `git push` (push vers remote)
 - `npm version` (changement de version)
 - Modifications de .env (contient des credentials)
+
+⚠️ **Notes importantes :**
+- NE PAS lancer `npm install` à chaque test - vérifier d'abord si `node_modules/` existe
+- NE PAS créer ou chercher de fichier `.env` - les variables d'environnement sont déjà disponibles
+- NE PAS faire de tests curl sur l'API Taiga avant de lancer les tests d'intégration
 
 ### Interprétation des résultats de tests
 
@@ -447,8 +538,11 @@ Quand ces fichiers changent, lancer les tests associés :
 | `src/tools/**/*.js` | `npm run test:quick` |
 | `src/utils.js`, `src/constants.js` | `npm run test:unit` |
 | `test/**/*.js` | Le test modifié directement |
-| `package.json` | `npm install` puis `npm test` |
-| `.env` | Aucun test automatique (credentials) |
+| `test/userStoryIntegrationTest.js` | `npm run test:userstory` |
+| `package.json` | `[ -d node_modules ] \|\| npm install` puis `npm test` |
+| `.env` | ⚠️ N'existe pas - utiliser les variables d'environnement |
+
+**Note importante** : Le fichier `.env` n'existe pas dans cet environnement. Les credentials Taiga sont fournis via les variables d'environnement système (`TAIGA_API_URL`, `TAIGA_USERNAME`, `TAIGA_PASSWORD`).
 
 ### Structure des tests
 
@@ -506,10 +600,16 @@ Avant de dire "c'est terminé" :
 - [ ] Le code compile sans erreur
 - [ ] `npm test` passe (tests rapides)
 - [ ] `npm run test:http` passe (si modif HTTP)
+- [ ] `npm run test:userstory` passe (si modif user stories ou tests d'intégration)
 - [ ] `./scripts/run-all-tests.sh` passe (validation complète)
 - [ ] CLAUDE.md est à jour (si changement de workflow)
 - [ ] Les commentaires dans le code sont clairs
 - [ ] Aucun serveur ne reste en background (vérifier avec `./scripts/stop-server.sh`)
+
+**Important pour les tests d'intégration :**
+- ✅ Utiliser les variables d'environnement système (déjà configurées)
+- ❌ NE PAS chercher ou créer de fichier `.env`
+- ❌ NE PAS lancer `npm install` à chaque test (vérifier `node_modules/` d'abord)
 
 ## 🏗️ Architecture Structure
 
