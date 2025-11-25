@@ -67,6 +67,7 @@ export class QueryParser {
         const field = match[1].toLowerCase();
         let operator = match[2] || '';
         let operatorName = match[3] ? match[3].toLowerCase() : '';
+        let operatorNameOriginal = match[3] || '';  // Preserve original case for values
         let value = match[4] || match[3];
 
         // Handle special operators like in:[], between:[], empty, notempty
@@ -77,8 +78,8 @@ export class QueryParser {
           operator = operatorName;
           value = true;
         } else if (operatorName && !match[4]) {
-          // Single word after colon (could be a value)
-          value = operatorName;
+          // Single word after colon (could be a value, preserve case)
+          value = operatorNameOriginal;  // Use original case, not lowercased
           operator = operator || '=';
         }
 
