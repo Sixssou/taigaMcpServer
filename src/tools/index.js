@@ -6,7 +6,7 @@
 // Import all tool modules
 import { authenticateTool } from './authTools.js';
 import { listProjectsTool, getProjectTool } from './projectTools.js';
-import { listUserStoriesTool, createUserStoryTool, getUserStoryTool, updateUserStoryTool, deleteUserStoryTool, addUserStoryToSprintTool } from './userStoryTools.js';
+import { listUserStoriesTool, createUserStoryTool, getUserStoryTool, updateUserStoryTool, deleteUserStoryTool, addUserStoryToSprintTool, batchGetUserStoriesTool } from './userStoryTools.js';
 import { createTaskTool, getTaskTool, updateTaskTool } from './taskTools.js';
 import { listIssuesTool, getIssueTool, createIssueTool, addIssueToSprintTool, assignIssueTool, updateIssueStatusTool } from './issueTools.js';
 import { listSprintsTool, getSprintStatsTool, createSprintTool, getIssuesBySprintTool, updateSprintTool, deleteSprintTool, getSprintCompleteTool, getUserStoriesByMilestoneTool, getTasksByUserStoryTool } from './sprintTools.js';
@@ -53,6 +53,7 @@ export const toolRegistry = {
     listUserStoriesTool,
     createUserStoryTool,
     getUserStoryTool,
+    batchGetUserStoriesTool,
     updateUserStoryTool,
     deleteUserStoryTool,
     addUserStoryToSprintTool

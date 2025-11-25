@@ -214,7 +214,7 @@ export class TaigaService {
   /**
    * Get user story by reference number
    * @param {string} ref - User story reference number
-   * @param {string} projectId - Project ID  
+   * @param {string} projectId - Project ID
    * @returns {Promise<Object>} - User story details
    */
   async getUserStoryByRef(ref, projectId) {
@@ -227,6 +227,41 @@ export class TaigaService {
     } catch (error) {
       console.error('Failed to get user story by reference:', error.message);
       throw new Error(ERROR_MESSAGES.USER_STORY_NOT_FOUND);
+    }
+  }
+
+  /**
+   * Get multiple user stories by their IDs (batch operation)
+   * @param {Array<string>} userStoryIds - Array of user story IDs
+   * @returns {Promise<Array>} - Array of user story objects with success/error status
+   */
+  async batchGetUserStories(userStoryIds) {
+    try {
+      const client = await createAuthenticatedClient();
+
+      // Fetch all user stories in parallel
+      const promises = userStoryIds.map(async (id) => {
+        try {
+          const response = await client.get(`${API_ENDPOINTS.USER_STORIES}/${id}`);
+          return {
+            success: true,
+            id: id,
+            data: response.data
+          };
+        } catch (error) {
+          return {
+            success: false,
+            id: id,
+            error: error.message
+          };
+        }
+      });
+
+      const results = await Promise.all(promises);
+      return results;
+    } catch (error) {
+      console.error('Failed to batch get user stories:', error.message);
+      throw new Error('Failed to batch get user stories from Taiga');
     }
   }
 

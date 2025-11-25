@@ -585,9 +585,19 @@ export function formatProjectList(projects) {
  * @returns {string} - Formatted user story list
  */
 export function formatUserStoryList(userStories) {
-  return userStories.map(us => 
-    `- #${us.ref}: ${us.subject} (Status: ${getSafeValue(us.status_extra_info?.name)})`
-  ).join('\n');
+  return userStories.map(us => {
+    const milestoneName = us.milestone_extra_info?.name ||
+                         (us.milestone ? `Milestone #${us.milestone}` : 'No milestone');
+    const epicName = us.epic_extra_info?.subject ||
+                    (us.epic ? `Epic #${us.epic}` : 'No epic');
+
+    return `- #${us.ref}: ${us.subject}
+  Status: ${getSafeValue(us.status_extra_info?.name)}
+  Points: ${getSafeValue(us.total_points, 'Not set')}
+  Milestone: ${milestoneName}
+  Epic: ${epicName}
+  Assigned: ${getSafeValue(us.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}`;
+  }).join('\n\n');
 }
 
 /**
@@ -735,6 +745,76 @@ export function enrichTaskObject(task) {
 }
 
 /**
+ * Enrich milestone object with metadata
+ * @param {Object} milestoneInfo - Milestone extra info from Taiga API
+ * @param {number|null} milestoneId - Milestone ID from user story
+ * @returns {Object|null} - Enriched milestone object or null
+ */
+function enrichMilestoneObject(milestoneInfo, milestoneId = null) {
+  if (!milestoneInfo && !milestoneId) {
+    return null;
+  }
+
+  // If we have milestone_extra_info, use it
+  if (milestoneInfo) {
+    return {
+      id: milestoneInfo.id,
+      name: milestoneInfo.name,
+      slug: milestoneInfo.slug || null,
+      closed: milestoneInfo.closed || false
+    };
+  }
+
+  // If we only have milestone ID, return minimal object
+  if (milestoneId) {
+    return {
+      id: milestoneId,
+      name: 'Unknown milestone',
+      slug: null,
+      closed: false
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Enrich epic object with metadata
+ * @param {Object} epicInfo - Epic extra info from Taiga API
+ * @param {number|null} epicId - Epic ID from user story
+ * @returns {Object|null} - Enriched epic object or null
+ */
+function enrichEpicObject(epicInfo, epicId = null) {
+  if (!epicInfo && !epicId) {
+    return null;
+  }
+
+  // If we have epic_extra_info, use it
+  if (epicInfo) {
+    return {
+      id: epicInfo.id,
+      ref: epicInfo.ref,
+      subject: epicInfo.subject,
+      color: epicInfo.color || null,
+      epicsOrder: epicInfo.epics_order || 0
+    };
+  }
+
+  // If we only have epic ID, return minimal object
+  if (epicId) {
+    return {
+      id: epicId,
+      ref: null,
+      subject: 'Unknown epic',
+      color: null,
+      epicsOrder: 0
+    };
+  }
+
+  return null;
+}
+
+/**
  * Enrich user story object with full metadata
  * @param {Object} userStory - User story object from Taiga API
  * @param {Array} tasks - Optional array of tasks for this user story
@@ -752,6 +832,8 @@ export function enrichUserStoryObject(userStory, tasks = null) {
     assignedTo: enrichUserObject(userStory.assigned_to_extra_info),
     owner: enrichUserObject(userStory.owner_extra_info),
     priority: enrichPriorityObject(userStory.priority_extra_info),
+    milestone: enrichMilestoneObject(userStory.milestone_extra_info, userStory.milestone),
+    epic: enrichEpicObject(userStory.epic_extra_info, userStory.epic),
     points: userStory.total_points || null,
     dueDate: userStory.due_date || null,
     dueDateStatus: calculateDueDateStatus(userStory.due_date, isClosed),
