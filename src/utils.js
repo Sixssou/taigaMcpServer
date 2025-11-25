@@ -117,22 +117,9 @@ export async function resolveUserStory(userStoryIdentifier, projectIdentifier) {
  * @returns {Promise<Object>} - User story with enriched milestone and epic data
  */
 export async function enrichUserStoryWithDetails(userStory) {
-  // DEBUG: Log initial state
-  console.error('=== ENRICH USER STORY DEBUG ===');
-  console.error('User Story ID:', userStory.id);
-  console.error('User Story Ref:', userStory.ref);
-  console.error('ALL AVAILABLE FIELDS:', Object.keys(userStory).sort());
-  console.error('Has milestone?', userStory.milestone);
-  console.error('Has milestone_extra_info?', !!userStory.milestone_extra_info);
-  console.error('Has epic?', userStory.epic);
-  console.error('Has epic_extra_info?', !!userStory.epic_extra_info);
-  console.error('Has epics?', userStory.epics);
-  console.error('Has epic_order?', userStory.epic_order);
-
   // Enrich milestone if ID exists but extra_info is missing
   if (userStory.milestone && !userStory.milestone_extra_info) {
     try {
-      console.error('Fetching milestone:', userStory.milestone);
       const milestone = await taigaService.getMilestone(userStory.milestone);
       userStory.milestone_extra_info = {
         id: milestone.id,
@@ -140,38 +127,13 @@ export async function enrichUserStoryWithDetails(userStory) {
         slug: milestone.slug,
         closed: milestone.closed
       };
-      console.error('Milestone enriched:', milestone.name);
     } catch (error) {
       console.error(`Failed to fetch milestone ${userStory.milestone}:`, error.message);
     }
   }
 
-  // Enrich epic if ID exists but extra_info is missing
-  if (userStory.epic && !userStory.epic_extra_info) {
-    try {
-      console.error('Fetching epic:', userStory.epic);
-      const epic = await taigaService.getEpic(userStory.epic);
-      console.error('Epic fetched:', epic);
-      userStory.epic_extra_info = {
-        id: epic.id,
-        ref: epic.ref,
-        subject: epic.subject,
-        color: epic.color,
-        epics_order: epic.epics_order
-      };
-      console.error('Epic enriched:', epic.subject);
-    } catch (error) {
-      console.error(`Failed to fetch epic ${userStory.epic}:`, error.message);
-      console.error('Epic fetch error stack:', error.stack);
-    }
-  } else {
-    console.error('Skipping epic fetch - epic:', userStory.epic, 'epic_extra_info:', userStory.epic_extra_info);
-  }
-
-  console.error('=== FINAL STATE ===');
-  console.error('milestone_extra_info:', userStory.milestone_extra_info);
-  console.error('epic_extra_info:', userStory.epic_extra_info);
-  console.error('==============================');
+  // Note: Epic information is already available in userStory.epics array
+  // No need to fetch epic separately - enrichUserStoryObject() handles it
 
   return userStory;
 }
@@ -848,11 +810,20 @@ function enrichMilestoneObject(milestoneInfo, milestoneId = null) {
  * Enrich epic object with metadata
  * @param {Object} epicInfo - Epic extra info from Taiga API
  * @param {number|null} epicId - Epic ID from user story
+ * @param {Array} epics - Epics array from user story (Taiga API format)
  * @returns {Object|null} - Enriched epic object or null
  */
-function enrichEpicObject(epicInfo, epicId = null) {
-  if (!epicInfo && !epicId) {
-    return null;
+function enrichEpicObject(epicInfo, epicId = null, epics = null) {
+  // If we have an epics array (Taiga API format), use the first epic
+  if (epics && Array.isArray(epics) && epics.length > 0) {
+    const epic = epics[0]; // Take first epic (user stories can have multiple epics)
+    return {
+      id: epic.id,
+      ref: epic.ref,
+      subject: epic.subject,
+      color: epic.color || null,
+      epicsOrder: epic.epics_order || 0
+    };
   }
 
   // If we have epic_extra_info, use it
@@ -899,7 +870,7 @@ export function enrichUserStoryObject(userStory, tasks = null) {
     owner: enrichUserObject(userStory.owner_extra_info),
     priority: enrichPriorityObject(userStory.priority_extra_info),
     milestone: enrichMilestoneObject(userStory.milestone_extra_info, userStory.milestone),
-    epic: enrichEpicObject(userStory.epic_extra_info, userStory.epic),
+    epic: enrichEpicObject(userStory.epic_extra_info, userStory.epic, userStory.epics),
     points: userStory.total_points || null,
     dueDate: userStory.due_date || null,
     dueDateStatus: calculateDueDateStatus(userStory.due_date, isClosed),
