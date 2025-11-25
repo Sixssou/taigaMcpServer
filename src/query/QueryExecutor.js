@@ -387,9 +387,11 @@ export class QueryExecutor {
       return numericItem === numericQuery;
     }
 
-    // String comparison (case-insensitive)
+    // String comparison (case-insensitive and trimmed)
     if (typeof itemValue === 'string' || typeof queryValue === 'string') {
-      return String(itemValue).toLowerCase() === String(queryValue).toLowerCase();
+      const itemStr = String(itemValue).trim().toLowerCase();
+      const queryStr = String(queryValue).trim().toLowerCase();
+      return itemStr === queryStr;
     }
 
     // Boolean comparison
