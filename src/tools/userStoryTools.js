@@ -109,11 +109,17 @@ export const getUserStoryTool = {
       // Enrich with full milestone and epic details if needed
       userStory = await enrichUserStoryWithDetails(userStory);
 
-      // Extract milestone and epic information properly
+      // Extract milestone information
       const milestoneName = userStory.milestone_extra_info?.name ||
                            (userStory.milestone ? `Milestone #${userStory.milestone}` : 'No milestone');
-      const epicName = userStory.epic_extra_info?.subject ||
-                      (userStory.epic ? `Epic #${userStory.epic}` : 'No epic');
+
+      // Extract epic information from epics array (Taiga returns epics as array, not single field)
+      const epicName = userStory.epics && userStory.epics.length > 0
+        ? userStory.epics[0].subject
+        : 'No epic';
+      const epicId = userStory.epics && userStory.epics.length > 0
+        ? userStory.epics[0].id
+        : null;
 
       const userStoryDetails = `User Story Details: #${userStory.ref} - ${userStory.subject}
 
@@ -126,7 +132,7 @@ Basic Information:
 Assignment & Organization:
 - Assigned to: ${getSafeValue(userStory.assigned_to_extra_info?.full_name_display, STATUS_LABELS.UNASSIGNED)}
 - Milestone: ${milestoneName}${userStory.milestone ? ` (ID: ${userStory.milestone})` : ''}
-- Epic: ${epicName}${userStory.epic ? ` (ID: ${userStory.epic})` : ''}
+- Epic: ${epicName}${epicId ? ` (ID: ${epicId})` : ''}
 
 Timeline:
 - Created: ${formatDateTime(userStory.created_date)}
@@ -295,6 +301,10 @@ export const batchGetUserStoriesTool = {
       // Build response with enriched data
       const enrichedUserStories = successful.map(result => {
         const us = result.data;
+        // Extract epic from epics array (Taiga returns epics as array)
+        const epicName = us.epics && us.epics.length > 0 ? us.epics[0].subject : 'No epic';
+        const epicId = us.epics && us.epics.length > 0 ? us.epics[0].id : null;
+
         return {
           ref: us.ref,
           id: us.id,
@@ -303,8 +313,8 @@ export const batchGetUserStoriesTool = {
           points: us.total_points || 0,
           milestone: us.milestone_extra_info?.name || (us.milestone ? `Milestone #${us.milestone}` : 'No milestone'),
           milestoneId: us.milestone || null,
-          epic: us.epic_extra_info?.subject || (us.epic ? `Epic #${us.epic}` : 'No epic'),
-          epicId: us.epic || null,
+          epic: epicName,
+          epicId: epicId,
           assignedTo: us.assigned_to_extra_info?.full_name_display || STATUS_LABELS.UNASSIGNED,
           tags: us.tags || [],
           isClosed: us.is_closed || false
