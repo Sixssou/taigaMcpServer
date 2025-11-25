@@ -229,29 +229,29 @@ function formatAdvancedSearchResultsWithMetadata(results, type, query, execution
  * Format single search result item
  */
 function formatSearchItem(item, type, index) {
-  const ref = getSafeValue(item, 'ref', index);
-  const subject = getSafeValue(item, 'subject', 'No title');
-  const status = getSafeValue(item, 'status_extra_info.name', item.status || 'Unknown');
+  const ref = item.ref || index;
+  const subject = item.subject || 'No title';
+  const status = item.status_extra_info?.name || item.status || 'Unknown';
   const created = formatDateTime(item.created_date);
 
   let output = `**${index}. #${ref}: ${subject}**\n`;
   output += `   Status: ${status}\n`;
 
   if (type === 'issues') {
-    const priority = getSafeValue(item, 'priority_extra_info.name', item.priority || 'Normal');
-    const type_name = getSafeValue(item, 'type_extra_info.name', item.type || 'Issue');
-    const assignee = getSafeValue(item, 'assigned_to_extra_info.full_name', 'Unassigned');
+    const priority = item.priority_extra_info?.name || item.priority || 'Normal';
+    const type_name = item.type_extra_info?.name || item.type || 'Issue';
+    const assignee = item.assigned_to_extra_info?.full_name || 'Unassigned';
 
     output += `   Type: ${type_name} | Priority: ${priority}\n`;
     output += `   Assignee: ${assignee}\n`;
   } else if (type === 'user_stories') {
-    const points = getSafeValue(item, 'total_points', 0);
-    const assignee = getSafeValue(item, 'assigned_to_extra_info.full_name', 'Unassigned');
+    const points = item.total_points || 0;
+    const assignee = item.assigned_to_extra_info?.full_name || 'Unassigned';
 
     output += `   Points: ${points} | Assignee: ${assignee}\n`;
   } else if (type === 'tasks') {
-    const assignee = getSafeValue(item, 'assigned_to_extra_info.full_name', 'Unassigned');
-    const userStory = getSafeValue(item, 'user_story_extra_info.subject', 'No related story');
+    const assignee = item.assigned_to_extra_info?.full_name || 'Unassigned';
+    const userStory = item.user_story_extra_info?.subject || 'No related story';
 
     output += `   Assignee: ${assignee}\n`;
     output += `   User Story: ${userStory}\n`;
@@ -266,9 +266,9 @@ function formatSearchItem(item, type, index) {
  * Format single search result item with enriched metadata
  */
 function formatSearchItemWithMetadata(item, type, index) {
-  const ref = getSafeValue(item, 'ref', index);
-  const subject = getSafeValue(item, 'subject', 'No title');
-  const status = getSafeValue(item, 'status_extra_info.name', item.status || 'Unknown');
+  const ref = item.ref || index;
+  const subject = item.subject || 'No title';
+  const status = item.status_extra_info?.name || item.status || 'Unknown';
   const isClosed = item.is_closed || false;
   const created = formatDateTime(item.created_date);
   const updated = formatDateTime(item.modified_date);
@@ -277,18 +277,18 @@ function formatSearchItemWithMetadata(item, type, index) {
   output += `   Status: ${status}${isClosed ? ' (Closed)' : ''}\n`;
 
   // Common metadata fields
-  const assignee = getSafeValue(item, 'assigned_to_extra_info.full_name', 'Unassigned');
-  const owner = getSafeValue(item, 'owner_extra_info.full_name', 'Unknown');
-  const milestone = getSafeValue(item, 'milestone_extra_info.name', item.milestone_slug || 'No Sprint');
+  const assignee = item.assigned_to_extra_info?.full_name || 'Unassigned';
+  const owner = item.owner_extra_info?.full_name || 'Unknown';
+  const milestone = item.milestone_extra_info?.name || item.milestone_slug || 'No Sprint';
   const blocked = item.is_blocked || false;
   const dueDate = item.due_date ? formatDateTime(item.due_date) : null;
   const attachments = item.attachments?.length || 0;
   const comments = item.total_comments || 0;
 
   if (type === 'issues') {
-    const priority = getSafeValue(item, 'priority_extra_info.name', item.priority || 'Normal');
-    const type_name = getSafeValue(item, 'type_extra_info.name', item.type || 'Issue');
-    const severity = getSafeValue(item, 'severity_extra_info.name', 'Normal');
+    const priority = item.priority_extra_info?.name || item.priority || 'Normal';
+    const type_name = item.type_extra_info?.name || item.type || 'Issue';
+    const severity = item.severity_extra_info?.name || 'Normal';
 
     output += `   Type: ${type_name} | Priority: ${priority} | Severity: ${severity}\n`;
     output += `   Assignee: ${assignee} | Owner: ${owner}\n`;
@@ -298,8 +298,8 @@ function formatSearchItemWithMetadata(item, type, index) {
       output += `   Attachments: ${attachments} | Comments: ${comments}\n`;
     }
   } else if (type === 'user_stories') {
-    const points = getSafeValue(item, 'total_points', 0);
-    const epic = getSafeValue(item, 'epic_extra_info.subject', 'No Epic');
+    const points = item.total_points || 0;
+    const epic = item.epic_extra_info?.subject || 'No Epic';
 
     output += `   Points: ${points} | Assignee: ${assignee} | Owner: ${owner}\n`;
     output += `   Sprint: ${milestone} | Epic: ${epic}${blocked ? ' | 🚫 BLOCKED' : ''}\n`;
@@ -308,7 +308,7 @@ function formatSearchItemWithMetadata(item, type, index) {
       output += `   Attachments: ${attachments} | Comments: ${comments}\n`;
     }
   } else if (type === 'tasks') {
-    const userStory = getSafeValue(item, 'user_story_extra_info.subject', 'No related story');
+    const userStory = item.user_story_extra_info?.subject || 'No related story';
 
     output += `   Assignee: ${assignee} | Owner: ${owner}\n`;
     output += `   User Story: ${userStory}\n`;
