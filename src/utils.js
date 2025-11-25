@@ -117,9 +117,19 @@ export async function resolveUserStory(userStoryIdentifier, projectIdentifier) {
  * @returns {Promise<Object>} - User story with enriched milestone and epic data
  */
 export async function enrichUserStoryWithDetails(userStory) {
+  // DEBUG: Log initial state
+  console.error('=== ENRICH USER STORY DEBUG ===');
+  console.error('User Story ID:', userStory.id);
+  console.error('User Story Ref:', userStory.ref);
+  console.error('Has milestone?', userStory.milestone);
+  console.error('Has milestone_extra_info?', !!userStory.milestone_extra_info);
+  console.error('Has epic?', userStory.epic);
+  console.error('Has epic_extra_info?', !!userStory.epic_extra_info);
+
   // Enrich milestone if ID exists but extra_info is missing
   if (userStory.milestone && !userStory.milestone_extra_info) {
     try {
+      console.error('Fetching milestone:', userStory.milestone);
       const milestone = await taigaService.getMilestone(userStory.milestone);
       userStory.milestone_extra_info = {
         id: milestone.id,
@@ -127,6 +137,7 @@ export async function enrichUserStoryWithDetails(userStory) {
         slug: milestone.slug,
         closed: milestone.closed
       };
+      console.error('Milestone enriched:', milestone.name);
     } catch (error) {
       console.error(`Failed to fetch milestone ${userStory.milestone}:`, error.message);
     }
@@ -135,7 +146,9 @@ export async function enrichUserStoryWithDetails(userStory) {
   // Enrich epic if ID exists but extra_info is missing
   if (userStory.epic && !userStory.epic_extra_info) {
     try {
+      console.error('Fetching epic:', userStory.epic);
       const epic = await taigaService.getEpic(userStory.epic);
+      console.error('Epic fetched:', epic);
       userStory.epic_extra_info = {
         id: epic.id,
         ref: epic.ref,
@@ -143,10 +156,19 @@ export async function enrichUserStoryWithDetails(userStory) {
         color: epic.color,
         epics_order: epic.epics_order
       };
+      console.error('Epic enriched:', epic.subject);
     } catch (error) {
       console.error(`Failed to fetch epic ${userStory.epic}:`, error.message);
+      console.error('Epic fetch error stack:', error.stack);
     }
+  } else {
+    console.error('Skipping epic fetch - epic:', userStory.epic, 'epic_extra_info:', userStory.epic_extra_info);
   }
+
+  console.error('=== FINAL STATE ===');
+  console.error('milestone_extra_info:', userStory.milestone_extra_info);
+  console.error('epic_extra_info:', userStory.epic_extra_info);
+  console.error('==============================');
 
   return userStory;
 }
