@@ -121,10 +121,13 @@ export async function enrichUserStoryWithDetails(userStory) {
   console.error('=== ENRICH USER STORY DEBUG ===');
   console.error('User Story ID:', userStory.id);
   console.error('User Story Ref:', userStory.ref);
+  console.error('ALL AVAILABLE FIELDS:', Object.keys(userStory).sort());
   console.error('Has milestone?', userStory.milestone);
   console.error('Has milestone_extra_info?', !!userStory.milestone_extra_info);
   console.error('Has epic?', userStory.epic);
   console.error('Has epic_extra_info?', !!userStory.epic_extra_info);
+  console.error('Has epics?', userStory.epics);
+  console.error('Has epic_order?', userStory.epic_order);
 
   // Enrich milestone if ID exists but extra_info is missing
   if (userStory.milestone && !userStory.milestone_extra_info) {
