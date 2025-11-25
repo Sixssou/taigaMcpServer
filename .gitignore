@@ -12,6 +12,8 @@ yarn-error.log
 # Logs
 logs
 *.log
+.http-server.log
+.http-server.pid
 
 # Editor directories and files
 .idea/

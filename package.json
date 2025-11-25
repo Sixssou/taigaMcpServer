@@ -9,11 +9,16 @@
   "scripts": {
     "start": "node src/index.js",
     "start:http": "node src/httpServer.js",
+    "dev": "nodemon src/index.js",
+    "dev:http": "nodemon src/httpServer.js",
     "test": "node test/unitTest.js && node test/quickTest.js",
     "test:unit": "node test/unitTest.js",
     "test:quick": "node test/quickTest.js",
     "test:basic": "node test/mcpTest.js",
     "test:integration": "node test/integration.js",
+    "test:http": "node test/httpServerTest.js",
+    "test:watch": "nodemon --exec 'npm test' --watch src --watch test",
+    "test:dev": "nodemon --exec 'npm run test:unit && npm run test:quick && npm run test:http' --watch src --watch test",
     "test:full": "node test/runTests.js"
   },
   "keywords": [
@@ -58,5 +63,8 @@
     "dotenv": "^16.4.7",
     "form-data": "^4.0.1",
     "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }

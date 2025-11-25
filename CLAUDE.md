@@ -27,14 +27,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development and Running
 ```bash
+# Production mode
 npm start                    # Start MCP server (stdio mode for Claude Desktop)
 npm start:http              # Start HTTP server (JSON-RPC mode for n8n integration)
+
+# Development mode (with hot-reload)
+npm run dev                 # Start stdio server with nodemon (auto-restart on changes)
+npm run dev:http            # Start HTTP server with nodemon (auto-restart on changes)
+
+# Testing
 npm test                     # Run default test suite (unit + quick tests)
 npm run test:unit           # Run unit tests (no external dependencies)
 npm run test:quick          # Run quick functional tests
+npm run test:http           # Run HTTP server tests (8 automated tests)
+npm run test:watch          # Run tests in watch mode (auto-rerun on changes)
+npm run test:dev            # Run dev tests in watch mode (unit + quick + http)
 npm run test:basic          # Run MCP protocol tests (complex)
 npm run test:integration    # Run Taiga API integration tests (requires credentials)
 npm run test:full          # Run all test suites (30 test files)
+
+# Specialized tests
 node test/batchTest.js     # Run batch operations specialized tests
 node test/advancedQueryTest.js  # Run advanced query specialized tests
 node test/commentTest.js      # Run comment system specialized tests
@@ -42,6 +54,11 @@ node test/attachmentTest.js   # Run file attachment specialized tests
 node test/base64UploadTest.js # Run Base64 file upload specialized tests
 node test/epicTest.js         # Run Epic management specialized tests
 node test/wikiTest.js         # Run Wiki management specialized tests
+
+# Utility scripts (for automation)
+./scripts/start-server.sh   # Start HTTP server in background (with PID tracking)
+./scripts/stop-server.sh    # Stop background HTTP server
+./scripts/run-all-tests.sh  # Run complete test suite with formatted output
 ```
 
 ### Package Management and Publishing
@@ -209,6 +226,289 @@ curl http://localhost:3000/health
 - Full MCP protocol compliance over HTTP
 - Stateless request/response model
 - Environment variables from .env file
+
+## 🤖 Workflow de développement avec Claude
+
+Cette section décrit comment Claude Code doit travailler sur ce projet de manière autonome et automatisée.
+
+### Principes de base
+
+1. **Automatisation maximale** : Claude lance lui-même les commandes (serveur, tests) sans demander à l'utilisateur
+2. **Tests systématiques** : Après chaque modification significative, lancer les tests pertinents
+3. **Feedback immédiat** : Rapporter les résultats des tests à l'utilisateur
+4. **Documentation à jour** : Mettre à jour CLAUDE.md après chaque changement de workflow
+
+### Commandes essentielles pour Claude
+
+#### Démarrage du développement
+```bash
+# 1. Vérifier l'environnement
+npm install                  # Installer/vérifier les dépendances
+
+# 2. Lancer les tests pour vérifier l'état initial
+./scripts/run-all-tests.sh  # Suite complète (unit + quick + http)
+# OU
+npm test                     # Tests rapides seulement (unit + quick)
+```
+
+#### Développement avec hot-reload
+```bash
+# Stdio mode (Claude Desktop)
+npm run dev                  # Auto-restart on file changes
+
+# HTTP mode (n8n integration)
+npm run dev:http            # Auto-restart on file changes
+```
+
+#### Tests en continu pendant le développement
+```bash
+# Option 1: Tests en mode watch (recommandé pour dev actif)
+npm run test:watch          # Relance tous les tests à chaque changement
+
+# Option 2: Tests dev en mode watch (plus rapide)
+npm run test:dev            # Relance unit + quick + http à chaque changement
+
+# Option 3: Tests manuels après modifications
+npm test                    # Tests rapides
+npm run test:http           # Tests HTTP seulement
+./scripts/run-all-tests.sh  # Suite complète avec rapport détaillé
+```
+
+#### Gestion du serveur HTTP en arrière-plan
+
+Pour les tests qui nécessitent un serveur HTTP actif :
+
+```bash
+# Démarrer le serveur
+./scripts/start-server.sh   # Démarre en background, crée .http-server.pid
+# Output:
+# 🚀 Starting MCP HTTP Server...
+# ✅ Server started successfully (PID: 12345)
+# ✅ Health check passed
+
+# Vérifier l'état du serveur
+curl http://localhost:3000/health
+# Output: {"status":"healthy","server":"Taiga MCP","version":"1.9.14",...}
+
+# Tester un endpoint MCP
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Arrêter le serveur
+./scripts/stop-server.sh    # Arrêt gracieux, nettoyage des fichiers PID
+# Output:
+# 🛑 Stopping server (PID: 12345)...
+# ✅ Server stopped
+# ✅ Cleanup complete
+```
+
+### Workflow type pour Claude
+
+#### Scénario 1 : Modification de code existant
+
+```bash
+# 1. Comprendre le contexte
+# - Lire les fichiers concernés
+# - Vérifier CLAUDE.md pour les conventions
+
+# 2. Faire les modifications
+# - Éditer les fichiers nécessaires
+# - Suivre les conventions du projet (ES modules, etc.)
+
+# 3. Tester immédiatement
+npm test                    # Tests rapides
+# OU si modification touche HTTP
+npm run test:http          # Tests HTTP spécifiques
+
+# 4. Si tests échouent
+# - Analyser les erreurs
+# - Corriger le code
+# - Relancer les tests
+
+# 5. Si tests passent
+./scripts/run-all-tests.sh # Validation complète avant commit
+```
+
+#### Scénario 2 : Ajout d'une nouvelle fonctionnalité
+
+```bash
+# 1. Planification
+# - Identifier les fichiers à modifier/créer
+# - Vérifier l'architecture dans CLAUDE.md
+
+# 2. Implémentation
+# - Créer/modifier les fichiers src/
+# - Suivre le pattern modulaire existant
+
+# 3. Tests unitaires
+npm run test:unit          # Vérifier que les utilitaires fonctionnent
+
+# 4. Tests d'intégration
+npm run test:quick         # Vérifier l'intégration MCP
+npm run test:http          # Si fonctionnalité HTTP
+
+# 5. Validation finale
+./scripts/run-all-tests.sh # Suite complète
+
+# 6. Documentation
+# - Mettre à jour CLAUDE.md si nécessaire
+# - Ajouter des exemples dans les commentaires
+```
+
+#### Scénario 3 : Debugging d'un problème
+
+```bash
+# 1. Reproduire le problème
+npm run dev:http           # Lancer en mode dev (avec logs)
+# Observer les logs en temps réel
+
+# 2. Tests ciblés
+# Si problème HTTP:
+npm run test:http
+# Si problème de logique métier:
+npm run test:unit
+
+# 3. Logs détaillés du serveur
+./scripts/start-server.sh  # Démarre en background
+tail -f .http-server.log   # Suivre les logs en temps réel
+# ... faire les tests manuels ...
+./scripts/stop-server.sh   # Arrêter quand terminé
+
+# 4. Fix et validation
+# - Corriger le code
+npm test                   # Vérification rapide
+./scripts/run-all-tests.sh # Validation complète
+```
+
+### Commandes à NE PAS demander à l'utilisateur
+
+Claude doit lancer ces commandes **automatiquement** sans confirmation :
+
+✅ **Toujours lancer automatiquement :**
+- `npm install` (si package.json a changé)
+- `npm test` (après modifications de code)
+- `npm run test:unit` (tests unitaires)
+- `npm run test:quick` (tests rapides)
+- `npm run test:http` (tests HTTP)
+- `./scripts/run-all-tests.sh` (validation complète)
+- `./scripts/stop-server.sh` (nettoyage)
+
+❌ **Demander confirmation avant :**
+- `npm publish` (publication npm)
+- `git push` (push vers remote)
+- `npm version` (changement de version)
+- Modifications de .env (contient des credentials)
+
+### Interprétation des résultats de tests
+
+#### Succès complet
+```bash
+./scripts/run-all-tests.sh
+# Output:
+# ╔════════════════════════════════════════════════════════════╗
+# ║                    Test Summary                            ║
+# ╠════════════════════════════════════════════════════════════╣
+# ║  ✅ Passed: 3                                              ║
+# ║  ❌ Failed: 0                                              ║
+# ╚════════════════════════════════════════════════════════════╝
+# 🎉 All tests passed successfully!
+
+# Action Claude : Informer l'utilisateur que tout est OK
+# Message : "✅ Modifications terminées. Tous les tests passent (23 tests)."
+```
+
+#### Échec de tests
+```bash
+npm run test:http
+# Output:
+# ❌ FAIL: Health endpoint responds
+#    Error: Expected 200, got 500
+
+# Action Claude :
+# 1. Analyser l'erreur
+# 2. Identifier le fichier concerné (src/httpServer.js)
+# 3. Lire le code pour comprendre
+# 4. Proposer un fix
+# 5. Appliquer le fix
+# 6. Relancer npm run test:http
+# 7. Répéter jusqu'à succès
+```
+
+### Fichiers à surveiller
+
+Quand ces fichiers changent, lancer les tests associés :
+
+| Fichier modifié | Tests à lancer |
+|----------------|----------------|
+| `src/**/*.js` | `npm test` (au minimum) |
+| `src/httpServer.js` | `npm run test:http` |
+| `src/tools/**/*.js` | `npm run test:quick` |
+| `src/utils.js`, `src/constants.js` | `npm run test:unit` |
+| `test/**/*.js` | Le test modifié directement |
+| `package.json` | `npm install` puis `npm test` |
+| `.env` | Aucun test automatique (credentials) |
+
+### Structure des tests
+
+- **test/unitTest.js** : 11 tests, ~200ms, aucune dépendance externe
+- **test/quickTest.js** : 4 tests, ~300ms, création serveur MCP
+- **test/httpServerTest.js** : 8 tests, ~5s, démarre/arrête serveur HTTP
+- **scripts/run-all-tests.sh** : Lance les 3 suites ci-dessus (total: 23 tests)
+
+### Exemple de session de développement complète
+
+```bash
+# 🎯 Mission : Ajouter un nouvel endpoint /status à httpServer.js
+
+# 1. État initial
+npm test                   # Vérifier que tout fonctionne
+# ✅ 15 tests passed
+
+# 2. Modifications
+# - Lire src/httpServer.js
+# - Ajouter le nouveau endpoint /status
+# - Sauvegarder
+
+# 3. Tests immédiats
+npm run test:http         # Tester HTTP spécifiquement
+# ❌ 1 test failed (nouveau endpoint pas testé)
+
+# 4. Ajouter test
+# - Lire test/httpServerTest.js
+# - Ajouter test pour /status
+# - Sauvegarder
+
+# 5. Retester
+npm run test:http
+# ✅ 9 tests passed (8 anciens + 1 nouveau)
+
+# 6. Validation complète
+./scripts/run-all-tests.sh
+# ✅ All tests passed!
+
+# 7. Documentation
+# - Mettre à jour CLAUDE.md si nécessaire
+# - Ajouter commentaires dans le code
+
+# 8. Rapport à l'utilisateur
+# "✅ Nouvel endpoint /status ajouté avec succès.
+#  - Code : src/httpServer.js:XXX
+#  - Test : test/httpServerTest.js:YYY
+#  - Tous les tests passent (24 tests)"
+```
+
+### Résumé : Checklist pour Claude
+
+Avant de dire "c'est terminé" :
+
+- [ ] Le code compile sans erreur
+- [ ] `npm test` passe (tests rapides)
+- [ ] `npm run test:http` passe (si modif HTTP)
+- [ ] `./scripts/run-all-tests.sh` passe (validation complète)
+- [ ] CLAUDE.md est à jour (si changement de workflow)
+- [ ] Les commentaires dans le code sont clairs
+- [ ] Aucun serveur ne reste en background (vérifier avec `./scripts/stop-server.sh`)
 
 ## 🏗️ Architecture Structure
 
