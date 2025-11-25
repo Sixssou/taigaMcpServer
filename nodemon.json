@@ -1,0 +1,11 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": ["test/*", "node_modules/*"],
+  "exec": "node",
+  "delay": 500,
+  "verbose": false,
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
