@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { TaigaService } from '../taigaService.js';
 import { RESPONSE_TEMPLATES, SUCCESS_MESSAGES, ERROR_MESSAGES, STATUS_LABELS } from '../constants.js';
-import { 
+import {
   resolveProjectId,
   findIdByName,
   formatUserStoryList,
@@ -13,7 +13,8 @@ import {
   createErrorResponse,
   createSuccessResponse,
   formatDateTime,
-  resolveUserStory
+  resolveUserStory,
+  enrichUserStoryWithDetails
 } from '../utils.js';
 
 const taigaService = new TaigaService();
@@ -103,7 +104,10 @@ export const getUserStoryTool = {
   },
   handler: async ({ userStoryIdentifier, projectIdentifier }) => {
     try {
-      const userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
+      let userStory = await resolveUserStory(userStoryIdentifier, projectIdentifier);
+
+      // Enrich with full milestone and epic details if needed
+      userStory = await enrichUserStoryWithDetails(userStory);
 
       // Extract milestone and epic information properly
       const milestoneName = userStory.milestone_extra_info?.name ||
@@ -265,7 +269,9 @@ export const batchGetUserStoriesTool = {
       // Resolve all user stories in parallel
       const promises = userStoryIdentifiers.map(async (identifier) => {
         try {
-          const userStory = await resolveUserStory(identifier, projectIdentifier);
+          let userStory = await resolveUserStory(identifier, projectIdentifier);
+          // Enrich with full milestone and epic details
+          userStory = await enrichUserStoryWithDetails(userStory);
           return {
             success: true,
             identifier: identifier,

@@ -111,6 +111,47 @@ export async function resolveUserStory(userStoryIdentifier, projectIdentifier) {
 }
 
 /**
+ * Enrich user story with full milestone and epic details
+ * Fetches additional data from API if *_extra_info is not present
+ * @param {Object} userStory - User story object from Taiga API
+ * @returns {Promise<Object>} - User story with enriched milestone and epic data
+ */
+export async function enrichUserStoryWithDetails(userStory) {
+  // Enrich milestone if ID exists but extra_info is missing
+  if (userStory.milestone && !userStory.milestone_extra_info) {
+    try {
+      const milestone = await taigaService.getMilestone(userStory.milestone);
+      userStory.milestone_extra_info = {
+        id: milestone.id,
+        name: milestone.name,
+        slug: milestone.slug,
+        closed: milestone.closed
+      };
+    } catch (error) {
+      console.error(`Failed to fetch milestone ${userStory.milestone}:`, error.message);
+    }
+  }
+
+  // Enrich epic if ID exists but extra_info is missing
+  if (userStory.epic && !userStory.epic_extra_info) {
+    try {
+      const epic = await taigaService.getEpic(userStory.epic);
+      userStory.epic_extra_info = {
+        id: epic.id,
+        ref: epic.ref,
+        subject: epic.subject,
+        color: epic.color,
+        epics_order: epic.epics_order
+      };
+    } catch (error) {
+      console.error(`Failed to fetch epic ${userStory.epic}:`, error.message);
+    }
+  }
+
+  return userStory;
+}
+
+/**
  * Resolve task identifier to task object
  * Handles direct IDs and reference numbers (with # prefix)
  * @param {string} taskIdentifier - Task ID or reference number
