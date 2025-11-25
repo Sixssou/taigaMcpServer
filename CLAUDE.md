@@ -46,7 +46,8 @@ npm run test:basic          # Run MCP protocol tests (complex)
 npm run test:integration    # Run Taiga API integration tests (requires credentials)
 npm run test:full          # Run all test suites (30 test files)
 
-# Specialized tests
+# Specialized tests (require valid Taiga credentials)
+npm run test:userstory      # Run user story integration tests (10 tests)
 node test/batchTest.js     # Run batch operations specialized tests
 node test/advancedQueryTest.js  # Run advanced query specialized tests
 node test/commentTest.js      # Run comment system specialized tests
