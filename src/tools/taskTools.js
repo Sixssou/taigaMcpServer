@@ -24,7 +24,7 @@ export const createTaskTool = {
   name: 'createTask',
   schema: {
     projectIdentifier: z.string().describe('Project ID or slug'),
-    userStoryIdentifier: z.string().describe('User story ID or reference number'),
+    userStoryIdentifier: z.string().describe('User story internal ID (large number) OR reference number with/without # (like "#50" or "50"). Small numbers without # are treated as references within the project.'),
     subject: z.string().describe('Task title/subject'),
     description: z.string().optional().describe('Task description'),
     status: z.string().optional().describe('Status name (e.g., "New", "In progress")'),
@@ -66,6 +66,15 @@ export const createTaskTool = {
         }
       } else {
         console.log(`Using User Story identifier as internal ID: ${userStoryId}`);
+        // Validate that the user story exists
+        try {
+          await taigaService.getUserStory(userStoryId);
+        } catch (error) {
+          throw new Error(
+            `User story with ID "${userStoryId}" not found or not accessible.\n` +
+            `Please verify the ID or use a reference number (#ref) instead.`
+          );
+        }
       }
 
       // Get status ID if a status name was provided
@@ -89,6 +98,7 @@ export const createTaskTool = {
 
       const creationDetails = `${SUCCESS_MESSAGES.TASK_CREATED}
 
+ID: ${createdTask.id}
 Subject: ${createdTask.subject}
 Reference: #${createdTask.ref}
 Status: ${getSafeValue(createdTask.status_extra_info?.name, 'Default status')}
@@ -108,8 +118,8 @@ User Story: #${createdTask.user_story_extra_info?.ref} - ${createdTask.user_stor
 export const getTaskTool = {
   name: 'getTask',
   schema: {
-    taskIdentifier: z.string().describe('Task ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
-    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+    taskIdentifier: z.string().describe('Task internal ID (large number like "8521961") OR reference number with # (like "#363"). Use internal ID returned by createTask for reliability. Small numbers without # are ambiguous and may retrieve wrong task.'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (STRONGLY RECOMMENDED when using reference numbers to avoid ambiguity)'),
   },
   handler: async ({ taskIdentifier, projectIdentifier }) => {
     try {
@@ -148,8 +158,8 @@ Tags: ${getSafeValue(task.tags?.join(', '), STATUS_LABELS.NO_TAGS)}`;
 export const updateTaskTool = {
   name: 'updateTask',
   schema: {
-    taskIdentifier: z.string().describe('Task ID or reference number (e.g., "123", "#45", or "45" - auto-detects format)'),
-    projectIdentifier: z.string().optional().describe('Project ID or slug (required if using reference number)'),
+    taskIdentifier: z.string().describe('Task internal ID (large number like "8521961") OR reference number with # (like "#363"). Use internal ID returned by createTask for reliability. Small numbers without # are ambiguous and may retrieve wrong task.'),
+    projectIdentifier: z.string().optional().describe('Project ID or slug (STRONGLY RECOMMENDED when using reference numbers to avoid ambiguity)'),
     subject: z.string().optional().describe('New task title/subject'),
     description: z.string().optional().describe('New task description'),
     status: z.string().optional().describe('Status name (e.g., "New", "In progress", "Done")'),
@@ -221,10 +231,12 @@ export const updateTaskTool = {
         }
       }
 
-      const updatedTask = await taigaService.updateTask(currentTask.id, updateData);
+      await taigaService.updateTask(currentTask.id, updateData);
 
-      // According to Taiga API docs, PATCH returns the complete task detail object
-      // with all *_extra_info fields, so we should use it directly
+      // Fetch the updated task to get all *_extra_info fields
+      // (PATCH doesn't always return complete data)
+      const updatedTask = await taigaService.getTask(currentTask.id);
+
       const updateDetails = `${SUCCESS_MESSAGES.TASK_UPDATED}
 
 Task: #${updatedTask.ref} - ${updatedTask.subject}
