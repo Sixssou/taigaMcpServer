@@ -245,10 +245,29 @@ Cette section décrit comment Claude Code doit travailler sur ce projet de mani�
 
 ### Principes de base
 
-1. **Automatisation maximale** : Claude lance lui-même les commandes (serveur, tests) sans demander à l'utilisateur
-2. **Tests systématiques** : Après chaque modification significative, lancer les tests pertinents
-3. **Feedback immédiat** : Rapporter les résultats des tests à l'utilisateur
-4. **Documentation à jour** : Mettre à jour CLAUDE.md après chaque changement de workflow
+1. **🚨 PRINCIPE CARDINAL - Ne JAMAIS modifier les tests pour qu'ils passent** :
+   - Les tests révèlent les bugs dans le code - c'est leur rôle principal
+   - ❌ **INTERDIT** : Ajuster un test qui échoue pour le faire passer
+   - ✅ **OBLIGATOIRE** : Analyser pourquoi le test échoue et corriger le code
+   - **Exceptions UNIQUEMENT** :
+     - Le test lui-même contient un bug évident (mauvaise assertion, logique erronée)
+     - L'utilisateur demande explicitement de travailler sur les tests
+     - La documentation MCP est ambiguë et le test a été mal écrit à cause de ça (corriger doc + test)
+   - **Workflow correct quand un test échoue** :
+     1. Lire le code testé pour comprendre le comportement réel
+     2. Analyser si le test expose un vrai bug ou si c'est le test qui est faux
+     3. Si c'est un bug de code : corriger le code
+     4. Si c'est un bug de doc MCP : corriger la doc + ajuster le test si nécessaire
+     5. Si c'est un bug de test : justifier clairement pourquoi avant de modifier le test
+   - **En cas de doute** : Toujours privilégier la correction du code plutôt que du test
+
+2. **Automatisation maximale** : Claude lance lui-même les commandes (serveur, tests) sans demander à l'utilisateur
+
+3. **Tests systématiques** : Après chaque modification significative, lancer les tests pertinents
+
+4. **Feedback immédiat** : Rapporter les résultats des tests à l'utilisateur
+
+5. **Documentation à jour** : Mettre à jour CLAUDE.md après chaque changement de workflow
 
 ### ⚡ Règles importantes pour les tests d'intégration
 
@@ -510,22 +529,72 @@ Claude doit lancer ces commandes **automatiquement** sans confirmation :
 # Message : "✅ Modifications terminées. Tous les tests passent (23 tests)."
 ```
 
-#### Échec de tests
-```bash
-npm run test:http
-# Output:
-# ❌ FAIL: Health endpoint responds
-#    Error: Expected 200, got 500
+#### Échec de tests - Application du PRINCIPE CARDINAL
 
-# Action Claude :
-# 1. Analyser l'erreur
-# 2. Identifier le fichier concerné (src/httpServer.js)
-# 3. Lire le code pour comprendre
-# 4. Proposer un fix
-# 5. Appliquer le fix
-# 6. Relancer npm run test:http
-# 7. Répéter jusqu'à succès
+**🚨 Rappel du principe** : JAMAIS modifier les tests pour qu'ils passent - toujours corriger le code.
+
+**Exemple concret - Tests de tâches échouant à 70%** :
+
+```bash
+npm run test:task:comprehensive
+# Output:
+# ❌ FAIL: TC-TASK-004: Get task by ID
+#    Error: Response doesn't contain internal ID
+# ❌ FAIL: TC-TASK-008: Update task subject
+#    Error: Updated subject not reflected in response
+# ❌ FAIL: TC-TASK-025: Error - Invalid user story
+#    Error: Should reject invalid user story ID
+# Success Rate: 70.4% (19/27)
+
+# ❌ MAUVAISE APPROCHE (INTERDITE) :
+# Modifier les tests pour ne plus vérifier l'ID interne
+# Modifier les assertions pour accepter des données incomplètes
+# Skipper les tests qui échouent
+
+# ✅ BONNE APPROCHE (OBLIGATOIRE) :
+# 1. Analyser POURQUOI les tests échouent
+#    - Lire le code des outils testés (src/tools/taskTools.js)
+#    - Comprendre ce que le test attend vs ce que le code fait réellement
+#    - Vérifier si la documentation MCP est claire ou ambiguë
+
+# 2. Identifier la cause racine
+#    Découvertes dans ce cas :
+#    - createTask ne retournait pas l'ID interne (bug de code)
+#    - updateTask ne refetch pas les données complètes après PATCH (bug de code)
+#    - createTask ne validait pas l'existence de la user story (bug de code)
+#    - Les descriptions MCP étaient ambiguës (bug de documentation)
+
+# 3. Corriger le CODE, pas les tests
+#    Corrections appliquées :
+#    - Ajout de l'ID interne dans la réponse de createTask
+#    - Refetch des données après PATCH dans updateTask
+#    - Validation de la user story avant création de tâche
+#    - Amélioration des descriptions MCP pour clarifier ID vs référence
+
+# 4. Résultat après corrections
+npm run test:task:comprehensive
+# Output:
+# Success Rate: 96.3% (26/27)
+# ✅ Les bugs de code sont corrigés
+# ✅ Les tests révélaient bien des vrais problèmes
+# ✅ La documentation MCP est maintenant claire
 ```
+
+**Cas particulier - Documentation MCP ambiguë** :
+
+Quand un test échoue à cause d'une description MCP ambiguë :
+
+1. **Corriger la documentation MCP** (descriptions des schémas Zod)
+2. **Analyser si le test a été mal écrit à cause de cette ambiguïté**
+3. **Si oui** : Ajuster le test pour refléter la doc corrigée (exception valide)
+4. **Si non** : Le test est correct, c'est le code qui doit changer
+
+**Exemple** : Dans `taskIdentifier`, la description disait "Task ID or reference number" sans préciser que les petits nombres sont ambigus. Les clients pouvaient créer des tests utilisant "363" pensant que c'est un ID, alors que c'était interprété comme référence. Solution : clarifier la doc + montrer aux tests comment utiliser correctement les IDs.
+
+**En résumé** :
+- ❌ Test échoue → Modifier le test pour qu'il passe
+- ✅ Test échoue → Comprendre pourquoi → Corriger le code (et/ou la doc MCP si ambiguë)
+- ✅ Toujours privilégier la correction du code sur la modification des tests
 
 ### Fichiers à surveiller
 
@@ -597,6 +666,7 @@ npm run test:http
 
 Avant de dire "c'est terminé" :
 
+- [ ] 🚨 **PRINCIPE CARDINAL RESPECTÉ** : Si des tests échouent, j'ai corrigé le CODE (pas ajusté les tests)
 - [ ] Le code compile sans erreur
 - [ ] `npm test` passe (tests rapides)
 - [ ] `npm run test:http` passe (si modif HTTP)
