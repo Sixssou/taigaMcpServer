@@ -31,6 +31,8 @@ import {
 } from '../../src/tools/epicTools.js';
 import { createUserStoryTool, deleteUserStoryTool } from '../../src/tools/userStoryTools.js';
 import { authenticateTool } from '../../src/tools/authTools.js';
+import { getProjectTool } from '../../src/tools/projectTools.js';
+import { verifyEnvironment, parseToolResponse, extractIdFromResponse, extractReferenceNumber } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -104,33 +106,32 @@ class EpicIntegrationTest {
     console.log('🧪 Epic Integration Test Suite\n');
     console.log('📋 Testing all Epic-related MCP tools\n');
 
-    if (!process.env.TAIGA_API_URL || !process.env.TAIGA_USERNAME || !process.env.TAIGA_PASSWORD) {
-      console.error('❌ Missing Taiga credentials');
-      console.error('   Required: TAIGA_API_URL, TAIGA_USERNAME, TAIGA_PASSWORD');
-      process.exit(1);
-    }
-
-    console.log(`🔗 API: ${process.env.TAIGA_API_URL}`);
-    console.log(`👤 User: ${process.env.TAIGA_USERNAME}\n`);
+    const env = verifyEnvironment();
+    console.log(`🔗 API: ${env.apiUrl}`);
+    console.log(`👤 User: ${env.username}`);
+    console.log(`📦 Test Project: ${env.testProjectId}\n`);
 
     try {
       // Authenticate first
       await this.test('TC-EPIC-001: Authentication', async () => {
         const authResult = await authenticateTool.handler({});
         const authText = this.parseToolResponse(authResult);
-        this.assert(authText.includes('✅'), 'Authentication should succeed');
-        this.assert(authText.includes('authenticated'), 'Should contain authentication message');
+        this.assert(authText.includes('Successfully') && authText.includes('authenticated'), 'Should show successful authentication');
+        this.assert(authText.includes(env.username), 'Should show username');
       });
 
-      // Get project for testing
-      await this.test('TC-EPIC-002: Get project ID', async () => {
-        const { listProjectsTool } = await import('../../src/tools/projectTools.js');
-        const projectsResult = await listProjectsTool.handler({});
-        const projectsText = this.parseToolResponse(projectsResult);
-        const idMatch = projectsText.match(/ID:\s*(\d+)/);
-        this.assert(idMatch, 'Should find at least one project');
+      // Get project from TEST_PROJECT_ID
+      await this.test('TC-EPIC-002: Get test project', async () => {
+        const result = await getProjectTool.handler({
+          projectIdentifier: env.testProjectId
+        });
+        const text = this.parseToolResponse(result);
+        this.assert(!text.includes('404') && !text.includes('not found'), 'Project should be found');
+
+        const idMatch = text.match(/ID:\s*(\d+)/);
+        this.assert(idMatch, 'Should extract project ID');
         this.projectId = parseInt(idMatch[1]);
-        console.log(`\n   → Using project ID: ${this.projectId}`);
+        console.log(`\n   → Using Test Project: ${env.testProjectId} (ID: ${this.projectId})`);
       });
 
       // Test 1: Create Epic
