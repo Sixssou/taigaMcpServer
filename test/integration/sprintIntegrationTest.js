@@ -26,16 +26,18 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import {
-  listMilestonesTool,
-  getMilestoneStatsTool,
-  createMilestoneTool,
-  updateMilestoneTool,
-  deleteMilestoneTool
+  listSprintsTool,
+  getSprintStatsTool,
+  createSprintTool,
+  updateSprintTool,
+  deleteSprintTool
 } from '../../src/tools/sprintTools.js';
 import { listProjectMilestonesTool } from '../../src/tools/metadataTools.js';
 import { createUserStoryTool, addUserStoryToSprintTool, deleteUserStoryTool } from '../../src/tools/userStoryTools.js';
 import { createIssueTool } from '../../src/tools/issueTools.js';
 import { authenticateTool } from '../../src/tools/authTools.js';
+import { getProjectTool } from '../../src/tools/projectTools.js';
+import { verifyEnvironment, parseToolResponse, extractIdFromResponse } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -109,32 +111,32 @@ class SprintIntegrationTest {
     console.log('🧪 Sprint/Milestone Integration Test Suite\n');
     console.log('📋 Testing all Sprint-related MCP tools\n');
 
-    if (!process.env.TAIGA_API_URL || !process.env.TAIGA_USERNAME || !process.env.TAIGA_PASSWORD) {
-      console.error('❌ Missing Taiga credentials');
-      console.error('   Required: TAIGA_API_URL, TAIGA_USERNAME, TAIGA_PASSWORD');
-      process.exit(1);
-    }
-
-    console.log(`🔗 API: ${process.env.TAIGA_API_URL}`);
-    console.log(`👤 User: ${process.env.TAIGA_USERNAME}\n`);
+    const env = verifyEnvironment();
+    console.log(`🔗 API: ${env.apiUrl}`);
+    console.log(`👤 User: ${env.username}`);
+    console.log(`📦 Test Project: ${env.testProjectId}\n`);
 
     try {
       // Authenticate
       await this.test('TC-SPRINT-001: Authentication', async () => {
         const authResult = await authenticateTool.handler({});
         const authText = this.parseToolResponse(authResult);
-        this.assert(authText.includes('✅'), 'Authentication should succeed');
+        this.assert(authText.includes('Successfully') && authText.includes('authenticated'), 'Should show successful authentication');
+        this.assert(authText.includes(env.username), 'Should show username');
       });
 
-      // Get project
-      await this.test('TC-SPRINT-002: Get project ID', async () => {
-        const { listProjectsTool } = await import('../../src/tools/projectTools.js');
-        const projectsResult = await listProjectsTool.handler({});
-        const projectsText = this.parseToolResponse(projectsResult);
-        const idMatch = projectsText.match(/ID:\s*(\d+)/);
-        this.assert(idMatch, 'Should find at least one project');
+      // Get test project from TEST_PROJECT_ID
+      await this.test('TC-SPRINT-002: Get test project', async () => {
+        const result = await getProjectTool.handler({
+          projectIdentifier: env.testProjectId
+        });
+        const text = this.parseToolResponse(result);
+        this.assert(!text.includes('404') && !text.includes('not found'), 'Project should be found');
+
+        const idMatch = text.match(/ID:\s*(\d+)/);
+        this.assert(idMatch, 'Should extract project ID');
         this.projectId = parseInt(idMatch[1]);
-        console.log(`\n   → Using project ID: ${this.projectId}`);
+        console.log(`\n   → Using Test Project: ${env.testProjectId} (ID: ${this.projectId})`);
       });
 
       // Test 1: Create Sprint
@@ -145,7 +147,7 @@ class SprintIntegrationTest {
 
         this.createdSprintName = `[TEST] Integration Sprint ${Date.now()}`;
 
-        const result = await createMilestoneTool.handler({
+        const result = await createSprintTool.handler({
           projectIdentifier: this.projectId,
           name: this.createdSprintName,
           estimatedStart: startDate,
@@ -155,8 +157,7 @@ class SprintIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify success message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('Milestone created') || text.includes('created'), 'Should contain creation message');
+        this.assert(text.includes('Sprint created successfully'), 'Should contain creation message');
 
         // Extract sprint ID
         this.createdSprintId = this.extractIdFromResponse(text);
@@ -172,7 +173,7 @@ class SprintIntegrationTest {
 
       // Test 2: List Milestones
       await this.test('TC-SPRINT-004: List all milestones', async () => {
-        const result = await listMilestonesTool.handler({
+        const result = await listSprintsTool.handler({
           projectIdentifier: this.projectId
         });
 
@@ -188,7 +189,7 @@ class SprintIntegrationTest {
 
       // Test 3: Get Milestone Stats (empty sprint)
       await this.test('TC-SPRINT-005: Get milestone stats for empty sprint', async () => {
-        const result = await getMilestoneStatsTool.handler({
+        const result = await getSprintStatsTool.handler({
           projectIdentifier: this.projectId,
           milestoneIdentifier: this.createdSprintId
         });
@@ -225,7 +226,7 @@ class SprintIntegrationTest {
         const updatedName = `${this.createdSprintName} - Updated`;
         const newEndDate = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const result = await updateMilestoneTool.handler({
+        const result = await updateSprintTool.handler({
           projectIdentifier: this.projectId,
           milestoneIdentifier: this.createdSprintId,
           name: updatedName,
@@ -235,8 +236,7 @@ class SprintIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify update message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('updated'), 'Should contain update message');
+        this.assert(text.includes('Sprint updated successfully'), 'Should contain update message');
 
         // Verify updated fields
         this.assert(text.includes('Updated') || text.includes(updatedName), 'Should show updated name');
@@ -268,8 +268,7 @@ class SprintIntegrationTest {
         });
 
         const text = this.parseToolResponse(result);
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('sprint') || text.includes('milestone'), 'Should mention sprint/milestone');
+        this.assert(text.includes('added to sprint') || text.includes('added to milestone'), 'Should mention adding to sprint/milestone');
       });
 
       // Test 8: Get User Stories by Milestone
@@ -305,8 +304,8 @@ class SprintIntegrationTest {
 
       // Test 10: Get Issues by Milestone
       await this.test('TC-SPRINT-012: Get issues in sprint', async () => {
-        const { getIssuesByMilestoneTool } = await import('../../src/tools/sprintTools.js');
-        const result = await getIssuesByMilestoneTool.handler({
+        const { getIssuesBySprintTool } = await import('../../src/tools/sprintTools.js');
+        const result = await getIssuesBySprintTool.handler({
           projectIdentifier: this.projectId,
           milestoneIdentifier: this.createdSprintId
         });
@@ -340,7 +339,7 @@ class SprintIntegrationTest {
 
       // Test 12: Get Stats with items
       await this.test('TC-SPRINT-014: Get milestone stats with items', async () => {
-        const result = await getMilestoneStatsTool.handler({
+        const result = await getSprintStatsTool.handler({
           projectIdentifier: this.projectId,
           milestoneIdentifier: this.createdSprintId
         });
@@ -366,7 +365,7 @@ class SprintIntegrationTest {
             userStoryIdentifier: this.createdStoryId
           });
           const text = this.parseToolResponse(result);
-          this.assert(text.includes('✅') || text.includes('deleted'), 'Should delete story');
+          this.assert(text.includes('deleted'), 'Should delete story');
         }
       });
 
@@ -374,7 +373,7 @@ class SprintIntegrationTest {
 
       // Test 13: Delete Sprint
       await this.test('TC-SPRINT-016: Delete sprint', async () => {
-        const result = await deleteMilestoneTool.handler({
+        const result = await deleteSprintTool.handler({
           projectIdentifier: this.projectId,
           milestoneIdentifier: this.createdSprintId
         });
@@ -382,14 +381,13 @@ class SprintIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify deletion message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('deleted') || text.includes('removed'), 'Should contain deletion message');
+        this.assert(text.includes('Sprint deleted successfully'), 'Should contain deletion message');
       });
 
       // Test 14: Verify Sprint Deleted
       await this.test('TC-SPRINT-017: Verify sprint deleted', async () => {
         try {
-          const result = await getMilestoneStatsTool.handler({
+          const result = await getSprintStatsTool.handler({
             projectIdentifier: this.projectId,
             milestoneIdentifier: this.createdSprintId
           });
@@ -399,7 +397,7 @@ class SprintIntegrationTest {
           // Should fail or return error
           this.assert(text.includes('not found') ||
                      text.includes('does not exist') ||
-                     text.includes('❌'),
+                     text.includes('Sprint not found'),
                      'Should indicate sprint no longer exists');
         } catch (error) {
           // Error is expected - sprint should not exist
