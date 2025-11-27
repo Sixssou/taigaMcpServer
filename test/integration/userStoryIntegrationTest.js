@@ -38,9 +38,11 @@ import {
   batchCreateUserStoriesTool,
   batchUpdateUserStoriesTool
 } from '../../src/tools/batchTools.js';
-import { createMilestoneTool, deleteMilestoneTool } from '../../src/tools/sprintTools.js';
+import { createSprintTool, deleteSprintTool } from '../../src/tools/sprintTools.js';
 import { createTaskTool } from '../../src/tools/taskTools.js';
 import { authenticateTool } from '../../src/tools/authTools.js';
+import { getProjectTool } from '../../src/tools/projectTools.js';
+import { verifyEnvironment, parseToolResponse, extractIdFromResponse, extractReferenceNumber } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -119,32 +121,32 @@ class UserStoryIntegrationTest {
     console.log('🧪 User Story Integration Test Suite\n');
     console.log('📋 Testing all User Story-related MCP tools\n');
 
-    if (!process.env.TAIGA_API_URL || !process.env.TAIGA_USERNAME || !process.env.TAIGA_PASSWORD) {
-      console.error('❌ Missing Taiga credentials');
-      console.error('   Required: TAIGA_API_URL, TAIGA_USERNAME, TAIGA_PASSWORD');
-      process.exit(1);
-    }
-
-    console.log(`🔗 API: ${process.env.TAIGA_API_URL}`);
-    console.log(`👤 User: ${process.env.TAIGA_USERNAME}\n`);
+    const env = verifyEnvironment();
+    console.log(`🔗 API: ${env.apiUrl}`);
+    console.log(`👤 User: ${env.username}`);
+    console.log(`📦 Test Project: ${env.testProjectId}\n`);
 
     try {
       // Authenticate
       await this.test('TC-US-001: Authentication', async () => {
         const authResult = await authenticateTool.handler({});
         const authText = this.parseToolResponse(authResult);
-        this.assert(authText.includes('✅'), 'Authentication should succeed');
+        this.assert(authText.includes('Successfully') && authText.includes('authenticated'), 'Should show successful authentication');
+        this.assert(authText.includes(env.username), 'Should show username');
       });
 
-      // Get project
-      await this.test('TC-US-002: Get project ID', async () => {
-        const { listProjectsTool } = await import('../../src/tools/projectTools.js');
-        const projectsResult = await listProjectsTool.handler({});
-        const projectsText = this.parseToolResponse(projectsResult);
-        const idMatch = projectsText.match(/ID:\s*(\d+)/);
-        this.assert(idMatch, 'Should find at least one project');
+      // Get test project from TEST_PROJECT_ID
+      await this.test('TC-US-002: Get test project', async () => {
+        const result = await getProjectTool.handler({
+          projectIdentifier: env.testProjectId
+        });
+        const text = this.parseToolResponse(result);
+        this.assert(!text.includes('404') && !text.includes('not found'), 'Project should be found');
+
+        const idMatch = text.match(/ID:\s*(\d+)/);
+        this.assert(idMatch, 'Should extract project ID');
         this.projectId = parseInt(idMatch[1]);
-        console.log(`\n   → Using project ID: ${this.projectId}`);
+        console.log(`\n   → Using Test Project: ${env.testProjectId} (ID: ${this.projectId})`);
       });
 
       // Test 1: Create User Story
@@ -159,8 +161,7 @@ class UserStoryIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify success message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('User story created') || text.includes('created'), 'Should contain creation message');
+        this.assert(text.includes('User story created successfully'), 'Should contain creation message');
 
         // Extract and store story ID
         const storyId = this.extractIdFromResponse(text);
@@ -241,8 +242,7 @@ class UserStoryIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify update message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('updated'), 'Should contain update message');
+        this.assert(text.includes('User story updated successfully'), 'Should contain update message');
 
         // Verify updated fields
         this.assert(text.includes('[TEST] Updated User Story'), 'Should show updated subject');
@@ -275,8 +275,7 @@ class UserStoryIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch creation message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('3') || text.includes('batch'), 'Should mention batch operation');
+        this.assert(text.includes('user stories created') || text.includes('batch'), 'Should mention batch operation');
 
         // Extract all created IDs
         const batchIds = this.extractAllIdsFromResponse(text);
@@ -330,7 +329,6 @@ class UserStoryIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch update message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
         this.assert(text.includes('updated') || text.includes('batch'), 'Should mention update operation');
 
         // Should mention updated stories
@@ -343,7 +341,7 @@ class UserStoryIntegrationTest {
         const startDate = today.toISOString().split('T')[0];
         const endDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const result = await createMilestoneTool.handler({
+        const result = await createSprintTool.handler({
           projectIdentifier: this.projectId,
           name: `[TEST] Sprint for US ${Date.now()}`,
           estimatedStart: startDate,
@@ -367,8 +365,7 @@ class UserStoryIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify assignment message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('sprint') || text.includes('milestone'), 'Should mention sprint/milestone');
+        this.assert(text.includes('added to sprint') || text.includes('added to milestone'), 'Should mention sprint/milestone');
       });
 
       // Test 11: Verify Story in Sprint
@@ -421,12 +418,12 @@ class UserStoryIntegrationTest {
       // Cleanup
       await this.test('TC-US-016: Cleanup - Delete sprint', async () => {
         if (this.createdSprintId) {
-          const result = await deleteMilestoneTool.handler({
+          const result = await deleteSprintTool.handler({
             projectIdentifier: this.projectId,
             milestoneIdentifier: this.createdSprintId
           });
           const text = this.parseToolResponse(result);
-          this.assert(text.includes('✅') || text.includes('deleted'), 'Should delete sprint');
+          this.assert(text.includes('deleted'), 'Should delete sprint');
         }
       });
 
