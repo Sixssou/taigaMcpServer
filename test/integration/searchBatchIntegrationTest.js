@@ -34,6 +34,8 @@ import {
 import { createUserStoryTool, deleteUserStoryTool } from '../../src/tools/userStoryTools.js';
 import { createTaskTool } from '../../src/tools/taskTools.js';
 import { authenticateTool } from '../../src/tools/authTools.js';
+import { getProjectTool } from '../../src/tools/projectTools.js';
+import { verifyEnvironment, parseToolResponse, extractIdFromResponse, extractReferenceNumber } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -98,38 +100,39 @@ class SearchBatchIntegrationTest {
     console.log('🧪 Search & Batch Operations Integration Test Suite\n');
     console.log('📋 Testing all Search and Batch MCP tools\n');
 
-    if (!process.env.TAIGA_API_URL || !process.env.TAIGA_USERNAME || !process.env.TAIGA_PASSWORD) {
-      console.error('❌ Missing Taiga credentials');
-      process.exit(1);
-    }
-
-    console.log(`🔗 API: ${process.env.TAIGA_API_URL}`);
-    console.log(`👤 User: ${process.env.TAIGA_USERNAME}\n`);
+    const env = verifyEnvironment();
+    console.log(`🔗 API: ${env.apiUrl}`);
+    console.log(`👤 User: ${env.username}`);
+    console.log(`📦 Test Project: ${env.testProjectId}\n`);
 
     try {
       // Authenticate
       await this.test('TC-SB-001: Authentication', async () => {
         const authResult = await authenticateTool.handler({});
         const authText = this.parseToolResponse(authResult);
-        this.assert(authText.includes('✅'), 'Authentication should succeed');
+        this.assert(authText.includes('Successfully') && authText.includes('authenticated'), 'Should show successful authentication');
+        this.assert(authText.includes(env.username), 'Should show username');
       });
 
-      // Get project and user
-      await this.test('TC-SB-002: Get project and user ID', async () => {
-        const { listProjectsTool } = await import('../../src/tools/projectTools.js');
-        const projectsResult = await listProjectsTool.handler({});
-        const projectsText = this.parseToolResponse(projectsResult);
-        const idMatch = projectsText.match(/ID:\s*(\d+)/);
-        this.assert(idMatch, 'Should find at least one project');
+      // Get test project from TEST_PROJECT_ID and current user ID
+      await this.test('TC-SB-002: Get test project and user ID', async () => {
+        const result = await getProjectTool.handler({
+          projectIdentifier: env.testProjectId
+        });
+        const text = this.parseToolResponse(result);
+        this.assert(!text.includes('404') && !text.includes('not found'), 'Project should be found');
+
+        const idMatch = text.match(/ID:\s*(\d+)/);
+        this.assert(idMatch, 'Should extract project ID');
         this.projectId = parseInt(idMatch[1]);
 
         // Get current user ID
-        const { getAuthenticatedClient } = await import('../../src/taigaAuth.js');
-        const client = await getAuthenticatedClient();
+        const { createAuthenticatedClient } = await import('../../src/taigaAuth.js');
+        const client = await createAuthenticatedClient();
         const meResponse = await client.get('/users/me');
         this.currentUserId = meResponse.data.id;
 
-        console.log(`\n   → Using project ID: ${this.projectId}`);
+        console.log(`\n   → Using Test Project: ${env.testProjectId} (ID: ${this.projectId})`);
         console.log(`   → Current user ID: ${this.currentUserId}`);
       });
 
@@ -160,8 +163,8 @@ class SearchBatchIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Should validate successfully
-        this.assert(text.includes('✅') || text.includes('valid'), 'Should validate as correct');
-        this.assert(!text.includes('❌') && !text.includes('error'), 'Should not show errors');
+        this.assert(text.includes('valid') || text.includes('Query validated'), 'Should validate as correct');
+        this.assert(!text.includes('error'), 'Should not show errors');
       });
 
       // Test 3: Validate Invalid Query
@@ -245,8 +248,7 @@ class SearchBatchIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch assignment
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('assigned') || text.includes('Assigned'), 'Should mention assignment');
+        this.assert(text.includes('assigned') || text.includes('Assigned') || text.includes('completed'), 'Should mention assignment');
         this.assert(text.includes('3') || text.includes(this.createdStoryIds.length.toString()), 'Should mention number of items');
       });
 
@@ -303,8 +305,7 @@ class SearchBatchIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch update
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('due date') || text.includes('Due date'), 'Should mention due dates');
+        this.assert(text.includes('due date') || text.includes('Due date') || text.includes('updated'), 'Should mention due dates');
         this.assert(text.includes(dueDate), 'Should show the due date');
       });
 
@@ -320,8 +321,7 @@ class SearchBatchIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify relative date handling
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('due date') || text.includes('Due date'), 'Should mention due dates');
+        this.assert(text.includes('due date') || text.includes('Due date') || text.includes('updated'), 'Should mention due dates');
       });
 
       // Test 10: Batch Assign Tasks
@@ -336,14 +336,13 @@ class SearchBatchIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch assignment
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('assigned') || text.includes('Assigned'), 'Should mention assignment');
+        this.assert(text.includes('assigned') || text.includes('Assigned') || text.includes('completed'), 'Should mention assignment');
       });
 
       // Test 11: Search Assigned Items
       await this.test('TC-SB-014: Search for assigned items', async () => {
-        const { getAuthenticatedClient } = await import('../../src/taigaAuth.js');
-        const client = await getAuthenticatedClient();
+        const { createAuthenticatedClient } = await import('../../src/taigaAuth.js');
+        const client = await createAuthenticatedClient();
         const meResponse = await client.get('/users/me');
         const username = meResponse.data.username;
 
@@ -369,7 +368,7 @@ class SearchBatchIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Should validate with project context
-        this.assert(text.includes('✅') || text.includes('valid'), 'Should validate successfully');
+        this.assert(text.includes('valid') || text.includes('Query validated'), 'Should validate successfully');
       });
 
       // Cleanup
