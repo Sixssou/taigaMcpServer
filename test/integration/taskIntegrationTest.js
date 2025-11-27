@@ -32,6 +32,8 @@ import {
 } from '../../src/tools/batchTools.js';
 import { createUserStoryTool, deleteUserStoryTool } from '../../src/tools/userStoryTools.js';
 import { authenticateTool } from '../../src/tools/authTools.js';
+import { getProjectTool } from '../../src/tools/projectTools.js';
+import { verifyEnvironment, parseToolResponse, extractIdFromResponse, extractReferenceNumber } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -97,31 +99,32 @@ class TaskIntegrationTest {
     console.log('🧪 Task Integration Test Suite\n');
     console.log('📋 Testing all Task-related MCP tools\n');
 
-    if (!process.env.TAIGA_API_URL || !process.env.TAIGA_USERNAME || !process.env.TAIGA_PASSWORD) {
-      console.error('❌ Missing Taiga credentials');
-      process.exit(1);
-    }
-
-    console.log(`🔗 API: ${process.env.TAIGA_API_URL}`);
-    console.log(`👤 User: ${process.env.TAIGA_USERNAME}\n`);
+    const env = verifyEnvironment();
+    console.log(`🔗 API: ${env.apiUrl}`);
+    console.log(`👤 User: ${env.username}`);
+    console.log(`📦 Test Project: ${env.testProjectId}\n`);
 
     try {
       // Authenticate
       await this.test('TC-TASK-001: Authentication', async () => {
         const authResult = await authenticateTool.handler({});
         const authText = this.parseToolResponse(authResult);
-        this.assert(authText.includes('✅'), 'Authentication should succeed');
+        this.assert(authText.includes('Successfully') && authText.includes('authenticated'), 'Should show successful authentication');
+        this.assert(authText.includes(env.username), 'Should show username');
       });
 
-      // Get project
-      await this.test('TC-TASK-002: Get project ID', async () => {
-        const { listProjectsTool } = await import('../../src/tools/projectTools.js');
-        const projectsResult = await listProjectsTool.handler({});
-        const projectsText = this.parseToolResponse(projectsResult);
-        const idMatch = projectsText.match(/ID:\s*(\d+)/);
-        this.assert(idMatch, 'Should find at least one project');
+      // Get test project from TEST_PROJECT_ID
+      await this.test('TC-TASK-002: Get test project', async () => {
+        const result = await getProjectTool.handler({
+          projectIdentifier: env.testProjectId
+        });
+        const text = this.parseToolResponse(result);
+        this.assert(!text.includes('404') && !text.includes('not found'), 'Project should be found');
+
+        const idMatch = text.match(/ID:\s*(\d+)/);
+        this.assert(idMatch, 'Should extract project ID');
         this.projectId = parseInt(idMatch[1]);
-        console.log(`\n   → Using project ID: ${this.projectId}`);
+        console.log(`\n   → Using Test Project: ${env.testProjectId} (ID: ${this.projectId})`);
       });
 
       // Create User Story for tasks
@@ -155,8 +158,7 @@ class TaskIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify success message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('Task created') || text.includes('created'), 'Should contain creation message');
+        this.assert(text.includes('Task created successfully'), 'Should contain creation message');
 
         // Extract task ID
         const taskId = this.extractIdFromResponse(text);
@@ -227,8 +229,7 @@ class TaskIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify update message
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('updated'), 'Should contain update message');
+        this.assert(text.includes('Task updated successfully'), 'Should contain update message');
 
         // Verify updated fields
         this.assert(text.includes('[TEST] Updated Task'), 'Should show updated subject');
@@ -266,8 +267,7 @@ class TaskIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch creation
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('3') || text.includes('batch'), 'Should mention batch operation');
+        this.assert(text.includes('Batch Tasks creation completed') || text.includes('batch'), 'Should mention batch operation');
 
         // Extract created IDs
         const batchIds = this.extractAllIdsFromResponse(text);
@@ -298,8 +298,7 @@ class TaskIntegrationTest {
         const text = this.parseToolResponse(result);
 
         // Verify batch update
-        this.assert(text.includes('✅'), 'Should contain success indicator');
-        this.assert(text.includes('updated') || text.includes('batch'), 'Should mention update operation');
+        this.assert(text.includes('Batch Tasks update completed') || text.includes('updated') || text.includes('batch'), 'Should mention update operation');
         this.assert(text.includes('Updated'), 'Should show updated marker');
       });
 
@@ -340,7 +339,7 @@ class TaskIntegrationTest {
           });
 
           const text = this.parseToolResponse(result);
-          this.assert(text.includes('✅'), 'Should update status successfully');
+          this.assert(text.includes('Task updated successfully'), 'Should update status successfully');
         } else {
           console.log('\n   → Skipping status update (no statuses found)');
         }
@@ -361,7 +360,7 @@ class TaskIntegrationTest {
         });
 
         const text = this.parseToolResponse(result);
-        this.assert(text.includes('✅'), 'Should assign task successfully');
+        this.assert(text.includes('Task updated successfully'), 'Should assign task successfully');
         this.assert(text.includes('Assigned') || text.includes('assigned'), 'Should show assignment');
       });
 
@@ -373,7 +372,7 @@ class TaskIntegrationTest {
             userStoryIdentifier: this.createdStoryId
           });
           const text = this.parseToolResponse(result);
-          this.assert(text.includes('✅') || text.includes('deleted'), 'Should delete story');
+          this.assert(text.includes('deleted'), 'Should delete story');
           console.log('\n   → Deleted story and all associated tasks');
         }
       });
